@@ -17,7 +17,12 @@ type LibraryContextValue = {
   createDeck: (title: string, category: string, folder: string, lesson: string) => void;
   addCard: (deckId: string, front: string, back: string) => void;
   deleteCard: (deckId: string, cardId: string) => void;
+  deleteCategory: (category: string) => void;
+  deleteDeck: (deckId: string) => void;
+  deleteFolder: (category: string, folder: string) => void;
+  deleteLesson: (category: string, folder: string, lesson: string) => void;
   reviewCard: (deckId: string, cardId: string, grade: ReviewGrade) => void;
+  resetDeckProgress: (deckId: string) => void;
   resetLibrary: () => void;
 };
 
@@ -142,6 +147,20 @@ export function LibraryProvider({ children }: PropsWithChildren) {
           ),
         );
       },
+      deleteCategory: (category) => {
+        setDecks((currentDecks) => currentDecks.filter((deck) => deck.category !== category));
+      },
+      deleteDeck: (deckId) => {
+        setDecks((currentDecks) => currentDecks.filter((deck) => deck.id !== deckId));
+      },
+      deleteFolder: (category, folder) => {
+        setDecks((currentDecks) => currentDecks.filter((deck) => deck.category !== category || deck.folder !== folder));
+      },
+      deleteLesson: (category, folder, lesson) => {
+        setDecks((currentDecks) =>
+          currentDecks.filter((deck) => deck.category !== category || deck.folder !== folder || deck.lesson !== lesson),
+        );
+      },
       reviewCard: (deckId, cardId, grade) => {
         const now = new Date().toISOString();
         setDecks((currentDecks) =>
@@ -159,6 +178,20 @@ export function LibraryProvider({ children }: PropsWithChildren) {
                         }
                       : card,
                   ),
+                }
+              : deck,
+          ),
+        );
+      },
+      resetDeckProgress: (deckId) => {
+        const now = new Date().toISOString();
+        setDecks((currentDecks) =>
+          currentDecks.map((deck) =>
+            deck.id === deckId
+              ? {
+                  ...deck,
+                  updatedAt: now,
+                  cards: deck.cards.map((card) => ({ ...card, mastery: 0, lastReviewedAt: undefined })),
                 }
               : deck,
           ),

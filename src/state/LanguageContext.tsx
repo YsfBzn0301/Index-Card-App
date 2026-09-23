@@ -29,6 +29,7 @@ export function LanguageProvider({ children }: PropsWithChildren) {
       if (isMounted && saved && isSupportedLanguageCode(saved)) {
         setLanguageCodeState(saved);
       }
+
     }
 
     loadLanguage().catch(() => undefined);

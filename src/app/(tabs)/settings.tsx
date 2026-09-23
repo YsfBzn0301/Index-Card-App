@@ -1,3 +1,5 @@
+import Constants from 'expo-constants';
+import * as Linking from 'expo-linking';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -6,16 +8,19 @@ import { useLanguage } from '../../state/LanguageContext';
 import { useLibrary } from '../../state/LibraryContext';
 import { createTheme } from '../../theme/palette';
 
+const developmentBuildApkUrl = 'https://expo.dev/artifacts/eas/gCpUVE3Sp-dhWQEZNYl_liXJmLQY6w_nKCsL3zhN9zo.apk';
+
 export default function SettingsScreen() {
   const colorScheme = useColorScheme();
   const theme = createTheme(colorScheme);
   const { resetLibrary, totalCards, masteredCards } = useLibrary();
   const { languageCode, languageLabel, setLanguageCode, t } = useLanguage();
+  const isDevelopmentBuildActive = Constants.appOwnership !== 'expo';
 
   function confirmReset() {
-    Alert.alert('Beispieldaten wiederherstellen?', 'Deine aktuellen lokalen Decks werden ersetzt.', [
-      { text: 'Abbrechen', style: 'cancel' },
-      { text: 'Zuruecksetzen', style: 'destructive', onPress: resetLibrary },
+    Alert.alert(t('resetSamplesTitle'), t('resetSamplesBody'), [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('resetSamples'), style: 'destructive', onPress: resetLibrary },
     ]);
   }
 
@@ -39,16 +44,29 @@ export default function SettingsScreen() {
           </View>
         </View>
         <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
-          <Text style={[styles.panelTitle, { color: theme.text }]}>App-Konzept</Text>
-          <Text style={[styles.copy, { color: theme.muted }]}>Offline-first Karteikarten-App fuer Schueler, Studierende und junge Erwachsene. Fokus: schnelle Deck-Erstellung, kurze Sessions, sichtbarer Fortschritt und ein verspieltes Interface.</Text>
+          <Text style={[styles.panelTitle, { color: theme.text }]}>{t('conceptTitle')}</Text>
+          <Text style={[styles.copy, { color: theme.muted }]}>{t('conceptBody')}</Text>
         </View>
         <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
-          <Text style={[styles.panelTitle, { color: theme.text }]}>Status</Text>
+          <Text style={[styles.panelTitle, { color: theme.text }]}>{t('developmentBuildTitle')}</Text>
+          <Text style={[styles.copy, { color: theme.muted }]}>{t('developmentBuildBody')}</Text>
+          <Pressable
+            disabled={isDevelopmentBuildActive}
+            style={[styles.linkButton, { backgroundColor: isDevelopmentBuildActive ? theme.elevated : theme.secondary }]}
+            onPress={() => Linking.openURL(developmentBuildApkUrl)}
+          >
+            <Text style={[styles.linkButtonText, { color: isDevelopmentBuildActive ? theme.muted : '#FFFFFF' }]}> 
+              {isDevelopmentBuildActive ? t('developmentBuildInstalled') : t('developmentBuildLink')}
+            </Text>
+          </Pressable>
+        </View>
+        <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
+          <Text style={[styles.panelTitle, { color: theme.text }]}>{t('status')}</Text>
           <Text style={[styles.copy, { color: theme.muted }]}>Theme: {colorScheme === 'dark' ? 'Dark Mode' : 'Light Mode'} automatisch</Text>
-          <Text style={[styles.copy, { color: theme.muted }]}>Karten: {masteredCards}/{totalCards} gemeistert</Text>
+          <Text style={[styles.copy, { color: theme.muted }]}>{t('cards')}: {masteredCards}/{totalCards} {t('mastered')}</Text>
         </View>
         <Pressable style={[styles.resetButton, { backgroundColor: theme.primary }]} onPress={confirmReset}>
-          <Text style={styles.resetText}>Beispieldaten wiederherstellen</Text>
+          <Text style={styles.resetText}>{t('resetSamples')}</Text>
         </Pressable>
       </ScrollView>
     </SafeAreaView>
@@ -98,6 +116,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   languageButtonText: {
+    fontWeight: '900',
+  },
+  linkButton: {
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  linkButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
     fontWeight: '900',
   },
   resetButton: {

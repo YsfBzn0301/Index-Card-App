@@ -10,7 +10,7 @@ import { createTheme } from '../../theme/palette';
 
 export default function StudyScreen() {
   const theme = createTheme(useColorScheme());
-  const { dueDecks, reviewCard } = useLibrary();
+  const { decks, reviewCard } = useLibrary();
   const { languageCode, t } = useLanguage();
   const [deckIndex, setDeckIndex] = useState(0);
   const [cardIndex, setCardIndex] = useState(0);
@@ -24,10 +24,13 @@ export default function StudyScreen() {
   const [isListening, setIsListening] = useState(false);
   const [spokenAnswer, setSpokenAnswer] = useState('');
   const [speechFeedback, setSpeechFeedback] = useState('');
-  const deck = dueDecks[deckIndex] ?? dueDecks[0];
-  const cards = deck?.cards.filter((card) => card.mastery < 3) ?? [];
+  const [ttsFeedback, setTtsFeedback] = useState('');
+  const deck = decks[deckIndex] ?? decks[0];
+  const dueCards = deck?.cards.filter((card) => card.mastery < 3) ?? [];
+  const cards = dueCards.length > 0 ? dueCards : deck?.cards ?? [];
   const card = cards[cardIndex] ?? cards[0];
   const isComplete = !deck || !card;
+  const isReviewingCompletedDeck = !!deck && dueCards.length === 0 && deck.cards.length > 0;
 
   useEffect(() => {
     Animated.spring(flipValue, {
@@ -83,14 +86,39 @@ export default function StudyScreen() {
     Haptics.selectionAsync().catch(() => undefined);
   }
 
-  function speak(text: string) {
-    Speech.stop().finally(() => {
-      Speech.speak(text, {
-        language: languageCode,
-        pitch: 1.02,
-        rate: 0.92,
-      });
-    });
+  async function speak(text: string, label: string) {
+    const textToSpeak = text.trim();
+
+    if (!textToSpeak) {
+      return;
+    }
+
+    setTtsFeedback(`${label}: ${t('speechListening')}`);
+
+    try {
+      await Speech.stop();
+
+      setTimeout(() => {
+        Speech.speak(textToSpeak, {
+          language: languageCode,
+          pitch: 1,
+          rate: 0.88,
+          volume: 1,
+          onStart: () => setTtsFeedback(`${label}: ${t('listen')}`),
+          onDone: () => setTtsFeedback(''),
+          onStopped: () => setTtsFeedback(''),
+          onError: (error) => {
+            const message = error.message || t('speechUnavailable');
+            setTtsFeedback(message);
+            Alert.alert(t('listen'), message);
+          },
+        });
+      }, 80);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t('speechUnavailable');
+      setTtsFeedback(message);
+      Alert.alert(t('listen'), message);
+    }
   }
 
   function review(grade: 'again' | 'good') {
@@ -103,6 +131,7 @@ export default function StudyScreen() {
     setSpokenAnswer('');
     setSpeechFeedback('');
     setIsListening(false);
+    setTtsFeedback('');
     setCardIndex((currentIndex) => (currentIndex + 1) % Math.max(1, cards.length));
     Haptics.notificationAsync(grade === 'good' ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Warning).catch(() => undefined);
   }
@@ -119,13 +148,14 @@ export default function StudyScreen() {
   }
 
   function nextDeck() {
-    setDeckIndex((currentIndex) => (currentIndex + 1) % Math.max(1, dueDecks.length));
+    setDeckIndex((currentIndex) => (currentIndex + 1) % Math.max(1, decks.length));
     setCardIndex(0);
     setIsFlipped(false);
     setIsSpeechMode(false);
     setIsListening(false);
     setSpokenAnswer('');
     setSpeechFeedback('');
+    setTtsFeedback('');
   }
 
   function normalizeAnswer(value: string) {
@@ -167,7 +197,7 @@ export default function StudyScreen() {
       const { ExpoSpeechRecognitionModule } = await import('expo-speech-recognition');
 
       if (!ExpoSpeechRecognitionModule) {
-        const message = 'Native Speech-Erkennung ist in dieser installierten App nicht enthalten. Installiere die neueste Development-Build-APK und oeffne Index Card, nicht Expo Go.';
+        const message = t('speechUnavailable');
         setIsListening(false);
         setSpeechFeedback(message);
         Alert.alert(t('speechMode'), message);
@@ -177,7 +207,7 @@ export default function StudyScreen() {
       const permissions = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
 
       if (!permissions.granted) {
-        const message = 'Mikrofon oder Spracherkennung wurde nicht erlaubt. Bitte in den App-Einstellungen erlauben und erneut versuchen.';
+        const message = t('speechUnavailable');
         setIsListening(false);
         setSpeechFeedback(message);
         Alert.alert(t('speechMode'), message);
@@ -185,7 +215,7 @@ export default function StudyScreen() {
       }
 
       if (!ExpoSpeechRecognitionModule.isRecognitionAvailable()) {
-        const message = 'Auf diesem Geraet ist kein Speech-Recognition-Dienst verfuegbar. Android: Google App oder Speech Recognition & Synthesis installieren/aktivieren. iOS: Siri & Diktieren aktivieren.';
+        const message = t('speechUnavailable');
         setIsListening(false);
         setSpeechFeedback(message);
         Alert.alert(t('speechMode'), message);
@@ -310,8 +340,8 @@ export default function StudyScreen() {
           <View style={[styles.trophy, { backgroundColor: theme.success }]}> 
             <Text style={styles.trophyText}>100%</Text>
           </View>
-          <Text style={[styles.emptyTitle, { color: theme.text }]}>Stark gemacht!</Text>
-          <Text style={[styles.emptyCopy, { color: theme.muted }]}>Du hast alle faelligen Karten gewusst. Kurze Pause, dann geht es mit neuen Karten weiter.</Text>
+          <Text style={[styles.emptyTitle, { color: theme.text }]}>{t('speechCorrect')}</Text>
+          <Text style={[styles.emptyCopy, { color: theme.muted }]}>{t('deckRepeatBody')}</Text>
         </Animated.View>
       </SafeAreaView>
     );
@@ -323,7 +353,7 @@ export default function StudyScreen() {
         <View style={styles.header}>
           <View>
             <Text style={[styles.title, { color: theme.text }]}>{t('study')}</Text>
-            <Text style={[styles.subtitle, { color: theme.muted }]}>{deck.title} · {cardIndex + 1}/{cards.length}</Text>
+            <Text style={[styles.subtitle, { color: theme.muted }]}>{deck.title} · {cardIndex + 1}/{cards.length}{isReviewingCompletedDeck ? ` · ${t('reviewMode')}` : ''}</Text>
           </View>
           <Pressable style={[styles.deckSwitch, { backgroundColor: theme.elevated }]} onPress={nextDeck}>
             <Text style={[styles.deckSwitchText, { color: theme.text }]}>Deck</Text>
@@ -341,9 +371,6 @@ export default function StudyScreen() {
             <Animated.View style={[styles.studyCard, { backgroundColor: theme.surface, borderColor: theme.border, transform: [{ perspective: 1200 }, { rotateY: frontRotateY }] }]}> 
               <View style={styles.cardTopRow}>
                 <Text style={[styles.cardHint, { color: theme.muted }]}>{t('question')}</Text>
-                <Pressable style={[styles.speechButton, { backgroundColor: theme.elevated }]} onPress={() => speak(card.front)}>
-                  <Text style={[styles.speechButtonText, { color: theme.text }]}>{t('listen')}</Text>
-                </Pressable>
               </View>
               <Text style={[styles.cardText, { color: theme.text }]}>{card.front}</Text>
               <Text style={[styles.tapHint, { color: theme.muted }]}>{t('tapToFlip')}</Text>
@@ -351,15 +378,22 @@ export default function StudyScreen() {
             <Animated.View style={[styles.studyCard, { backgroundColor: deck.accent, borderColor: deck.accent, transform: [{ perspective: 1200 }, { rotateY: backRotateY }] }]}> 
               <View style={styles.cardTopRow}>
                 <Text style={[styles.cardHint, styles.lightText]}>{t('answer')}</Text>
-                <Pressable style={styles.lightSpeechButton} onPress={() => speak(card.back)}>
-                  <Text style={styles.lightSpeechButtonText}>{t('listen')}</Text>
-                </Pressable>
               </View>
               <Text style={[styles.cardText, styles.lightText]}>{card.back}</Text>
               <Text style={[styles.tapHint, styles.lightText]}>{t('tapToFlip')}</Text>
             </Animated.View>
           </Pressable>
         </Animated.View>
+
+        <View style={styles.audioActions}>
+          <Pressable style={[styles.audioButton, { backgroundColor: theme.elevated }]} onPress={() => speak(card.front, t('front'))}>
+            <Text style={[styles.audioButtonText, { color: theme.text }]}>{t('speakFront')}</Text>
+          </Pressable>
+          <Pressable style={[styles.audioButton, { backgroundColor: deck.accent }]} onPress={() => speak(card.back, t('answer'))}>
+            <Text style={[styles.audioButtonText, styles.lightText]}>{t('speakBack')}</Text>
+          </Pressable>
+        </View>
+        {!!ttsFeedback && <Text style={[styles.ttsFeedback, { color: theme.muted }]}>{ttsFeedback}</Text>}
 
         {isSpeechMode ? (
           <View style={[styles.speechModePanel, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
@@ -478,25 +512,26 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
   },
-  speechButton: {
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+  audioActions: {
+    flexDirection: 'row',
+    gap: 10,
   },
-  speechButtonText: {
-    fontSize: 12,
+  audioButton: {
+    flex: 1,
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 13,
+    alignItems: 'center',
+  },
+  audioButtonText: {
+    fontSize: 13,
     fontWeight: '900',
   },
-  lightSpeechButton: {
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: 'rgba(255,255,255,0.22)',
-  },
-  lightSpeechButtonText: {
-    color: '#FFFFFF',
+  ttsFeedback: {
+    marginTop: -14,
     fontSize: 12,
-    fontWeight: '900',
+    fontWeight: '800',
+    textAlign: 'center',
   },
   cardText: {
     fontSize: 30,

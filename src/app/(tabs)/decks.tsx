@@ -12,7 +12,7 @@ type DictationTarget = 'front' | 'back';
 
 export default function DecksScreen() {
   const theme = createTheme(useColorScheme());
-  const { decks, createDeck, addCard, deleteCard } = useLibrary();
+  const { decks, createDeck, addCard, deleteCard, deleteDeck, resetDeckProgress } = useLibrary();
   const { languageCode, t } = useLanguage();
   const [isDeckModalOpen, setIsDeckModalOpen] = useState(false);
   const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
@@ -53,9 +53,23 @@ export default function DecksScreen() {
       return;
     }
 
-    Alert.alert('Karte loeschen?', 'Diese Karte wird aus dem Deck entfernt.', [
-      { text: 'Abbrechen', style: 'cancel' },
-      { text: 'Loeschen', style: 'destructive', onPress: () => deleteCard(selectedDeck.id, cardId) },
+    Alert.alert(t('cardDeleteTitle'), t('cardDeleteBody'), [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('cardDelete'), style: 'destructive', onPress: () => deleteCard(selectedDeck.id, cardId) },
+    ]);
+  }
+
+  function confirmDeleteDeck(deckId: string, deckTitle: string) {
+    Alert.alert(t('deckDeleteTitle'), `${deckTitle} ${t('deckDeleteBody')}`, [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('deckDelete'), style: 'destructive', onPress: () => deleteDeck(deckId) },
+    ]);
+  }
+
+  function confirmResetDeck(deckId: string, deckTitle: string) {
+    Alert.alert(t('deckRepeatTitle'), `${deckTitle} ${t('deckRepeatBody')}`, [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('deckRepeat'), onPress: () => resetDeckProgress(deckId) },
     ]);
   }
 
@@ -119,7 +133,7 @@ export default function DecksScreen() {
         <View style={styles.header}>
           <View>
             <Text style={[styles.title, { color: theme.text }]}>{t('decks')}</Text>
-            <Text style={[styles.subtitle, { color: theme.muted }]}>Fach / Ordner / Lektion / Deck</Text>
+            <Text style={[styles.subtitle, { color: theme.muted }]}>{`${t('language')} / ${t('decks')}`}</Text>
           </View>
           <Pressable style={[styles.addButton, { backgroundColor: theme.primary }]} onPress={() => setIsDeckModalOpen(true)}>
             <Text style={styles.addButtonText}>+</Text>
@@ -163,17 +177,17 @@ export default function DecksScreen() {
       <Modal transparent visible={isDeckModalOpen} animationType="slide" onRequestClose={() => setIsDeckModalOpen(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalBackdrop}>
           <View style={[styles.modal, { backgroundColor: theme.surface }]}> 
-            <Text style={[styles.modalTitle, { color: theme.text }]}>Neues Deck</Text>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>{t('newDeck')}</Text>
             <TextInput value={category} onChangeText={setCategory} placeholder="Hauptkategorie / Fach, z. B. Englisch" placeholderTextColor={theme.muted} style={[styles.input, { color: theme.text, borderColor: theme.border }]} />
             <TextInput value={folder} onChangeText={setFolder} placeholder="Unterordner, z. B. Vokabeln" placeholderTextColor={theme.muted} style={[styles.input, { color: theme.text, borderColor: theme.border }]} />
             <TextInput value={lesson} onChangeText={setLesson} placeholder="Lektion, z. B. Unit 5" placeholderTextColor={theme.muted} style={[styles.input, { color: theme.text, borderColor: theme.border }]} />
             <TextInput value={title} onChangeText={setTitle} placeholder="Deck / Stack, z. B. Irregular Verbs" placeholderTextColor={theme.muted} style={[styles.input, { color: theme.text, borderColor: theme.border }]} />
             <View style={styles.modalActions}>
               <Pressable style={[styles.secondaryButton, { borderColor: theme.border }]} onPress={() => setIsDeckModalOpen(false)}>
-                <Text style={[styles.secondaryText, { color: theme.text }]}>Abbrechen</Text>
+                <Text style={[styles.secondaryText, { color: theme.text }]}>{t('cancel')}</Text>
               </Pressable>
               <Pressable style={[styles.primaryButton, { backgroundColor: theme.primary }]} onPress={saveDeck}>
-                <Text style={styles.primaryText}>Speichern</Text>
+                <Text style={styles.primaryText}>{t('save')}</Text>
               </Pressable>
             </View>
           </View>
@@ -183,7 +197,7 @@ export default function DecksScreen() {
       <Modal transparent visible={!!selectedDeck} animationType="slide" onRequestClose={() => setSelectedDeckId(null)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalBackdrop}>
           <View style={[styles.modal, { backgroundColor: theme.surface }]}> 
-            <Text style={[styles.modalTitle, { color: theme.text }]}>Karte fuer {selectedDeck?.title}</Text>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>{t('cards')} · {selectedDeck?.title}</Text>
             <View style={styles.inputBlock}>
               <TextInput value={front} onChangeText={setFront} placeholder="Vorderseite / Frage" placeholderTextColor={theme.muted} multiline style={[styles.input, styles.textArea, { color: theme.text, borderColor: theme.border }]} />
               <Pressable style={[styles.dictationButton, { backgroundColor: theme.elevated }]} onPress={() => startDictation('front')}>
@@ -191,7 +205,7 @@ export default function DecksScreen() {
               </Pressable>
             </View>
             <View style={styles.inputBlock}>
-              <TextInput value={back} onChangeText={setBack} placeholder="Rueckseite / Antwort" placeholderTextColor={theme.muted} multiline style={[styles.input, styles.textArea, { color: theme.text, borderColor: theme.border }]} />
+              <TextInput value={back} onChangeText={setBack} placeholder={`${t('answer')}`} placeholderTextColor={theme.muted} multiline style={[styles.input, styles.textArea, { color: theme.text, borderColor: theme.border }]} />
               <Pressable style={[styles.dictationButton, { backgroundColor: theme.elevated }]} onPress={() => startDictation('back')}>
                 <Text style={[styles.dictationButtonText, { color: theme.text }]}>{dictationTarget === 'back' ? '...' : t('recordBack')}</Text>
               </Pressable>
@@ -205,18 +219,30 @@ export default function DecksScreen() {
                     <Text style={[styles.cardRowLabel, { color: theme.muted }]}>{t('answer')}</Text>
                     <Text style={[styles.cardRowValue, { color: theme.text }]}>{card.back}</Text>
                   </View>
-                  <Pressable style={[styles.deleteButton, { backgroundColor: theme.primary }]} onPress={() => confirmDeleteCard(card.id)}>
-                    <Text style={styles.deleteButtonText}>Loeschen</Text>
-                  </Pressable>
+                  <View style={styles.cardRowActions}>
+                    <Pressable style={[styles.deleteButton, { backgroundColor: theme.primary }]} onPress={() => confirmDeleteCard(card.id)}>
+                      <Text style={styles.deleteButtonText}>{t('cardDelete')}</Text>
+                    </Pressable>
+                  </View>
                 </View>
               ))}
             </ScrollView>
+            {selectedDeck && (
+              <View style={styles.deckActions}>
+                <Pressable style={[styles.secondaryButton, { borderColor: theme.border }]} onPress={() => confirmResetDeck(selectedDeck.id, selectedDeck.title)}>
+                  <Text style={[styles.secondaryText, { color: theme.text }]}>{t('deckRepeat')}</Text>
+                </Pressable>
+                <Pressable style={[styles.primaryButton, { backgroundColor: theme.primary }]} onPress={() => confirmDeleteDeck(selectedDeck.id, selectedDeck.title)}>
+                  <Text style={styles.primaryText}>{t('deckDelete')}</Text>
+                </Pressable>
+              </View>
+            )}
             <View style={styles.modalActions}>
               <Pressable style={[styles.secondaryButton, { borderColor: theme.border }]} onPress={() => setSelectedDeckId(null)}>
                 <Text style={[styles.secondaryText, { color: theme.text }]}>{t('done')}</Text>
               </Pressable>
               <Pressable style={[styles.primaryButton, { backgroundColor: theme.secondary }]} onPress={saveCard}>
-                <Text style={styles.primaryText}>Hinzufuegen</Text>
+                <Text style={styles.primaryText}>{t('save')}</Text>
               </Pressable>
             </View>
           </View>
@@ -355,6 +381,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 20,
   },
+  cardRowActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
   deleteButton: {
     alignSelf: 'flex-start',
     borderRadius: 14,
@@ -364,6 +394,10 @@ const styles = StyleSheet.create({
   deleteButtonText: {
     color: '#FFFFFF',
     fontWeight: '900',
+  },
+  deckActions: {
+    flexDirection: 'row',
+    gap: 10,
   },
   modalActions: {
     flexDirection: 'row',

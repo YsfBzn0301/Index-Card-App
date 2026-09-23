@@ -3,12 +3,14 @@ import { ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DeckCard } from '../../components/DeckCard';
+import { useLanguage } from '../../state/LanguageContext';
 import { useLibrary } from '../../state/LibraryContext';
 import { createTheme } from '../../theme/palette';
 
 export default function HomeScreen() {
   const theme = createTheme(useColorScheme());
   const { decks, masteredCards, totalCards, dueCards } = useLibrary();
+  const { t } = useLanguage();
   const progress = totalCards === 0 ? 0 : Math.round((masteredCards / totalCards) * 100);
 
   return (
@@ -20,18 +22,18 @@ export default function HomeScreen() {
           <View style={styles.heroStats}>
             <View>
               <Text style={styles.statNumber}>{dueCards.length}</Text>
-              <Text style={styles.statLabel}>faellige Karten</Text>
+              <Text style={styles.statLabel}>{t('cards')}</Text>
             </View>
             <View style={styles.statDivider} />
             <View>
               <Text style={styles.statNumber}>{progress}%</Text>
-              <Text style={styles.statLabel}>gemeistert</Text>
+              <Text style={styles.statLabel}>{t('mastered')}</Text>
             </View>
           </View>
         </LinearGradient>
 
         <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Deine Decks</Text>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('decks')}</Text>
           <Text style={[styles.sectionHint, { color: theme.muted }]}>{decks.length} aktiv</Text>
         </View>
 
