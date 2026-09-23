@@ -18,7 +18,7 @@ export default function HomeScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <LinearGradient colors={[theme.gradientStart, theme.gradientEnd]} style={styles.hero}>
           <Text style={styles.kicker}>Index Card</Text>
-          <Text style={styles.heroTitle}>Heute kurz lernen, morgen locker abrufen.</Text>
+          <Text style={styles.heroTitle}>{t('heroTitle')}</Text>
           <View style={styles.heroStats}>
             <View>
               <Text style={styles.statNumber}>{dueCards.length}</Text>
@@ -34,7 +34,7 @@ export default function HomeScreen() {
 
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('decks')}</Text>
-          <Text style={[styles.sectionHint, { color: theme.muted }]}>{decks.length} aktiv</Text>
+          <Text style={[styles.sectionHint, { color: theme.muted }]}>{decks.length} {t('active')}</Text>
         </View>
 
         <View style={styles.deckList}>

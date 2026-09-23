@@ -356,7 +356,7 @@ export default function StudyScreen() {
             <Text style={[styles.subtitle, { color: theme.muted }]}>{deck.title} · {cardIndex + 1}/{cards.length}{isReviewingCompletedDeck ? ` · ${t('reviewMode')}` : ''}</Text>
           </View>
           <Pressable style={[styles.deckSwitch, { backgroundColor: theme.elevated }]} onPress={nextDeck}>
-            <Text style={[styles.deckSwitchText, { color: theme.text }]}>Deck</Text>
+            <Text style={[styles.deckSwitchText, { color: theme.text }]}>{t('deck')}</Text>
           </Pressable>
         </View>
 

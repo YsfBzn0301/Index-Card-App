@@ -133,7 +133,7 @@ export default function DecksScreen() {
         <View style={styles.header}>
           <View>
             <Text style={[styles.title, { color: theme.text }]}>{t('decks')}</Text>
-            <Text style={[styles.subtitle, { color: theme.muted }]}>{`${t('language')} / ${t('decks')}`}</Text>
+            <Text style={[styles.subtitle, { color: theme.muted }]}>{`${t('language')} / ${t('deck')}`}</Text>
           </View>
           <Pressable style={[styles.addButton, { backgroundColor: theme.primary }]} onPress={() => setIsDeckModalOpen(true)}>
             <Text style={styles.addButtonText}>+</Text>
@@ -178,10 +178,10 @@ export default function DecksScreen() {
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalBackdrop}>
           <View style={[styles.modal, { backgroundColor: theme.surface }]}> 
             <Text style={[styles.modalTitle, { color: theme.text }]}>{t('newDeck')}</Text>
-            <TextInput value={category} onChangeText={setCategory} placeholder="Hauptkategorie / Fach, z. B. Englisch" placeholderTextColor={theme.muted} style={[styles.input, { color: theme.text, borderColor: theme.border }]} />
-            <TextInput value={folder} onChangeText={setFolder} placeholder="Unterordner, z. B. Vokabeln" placeholderTextColor={theme.muted} style={[styles.input, { color: theme.text, borderColor: theme.border }]} />
-            <TextInput value={lesson} onChangeText={setLesson} placeholder="Lektion, z. B. Unit 5" placeholderTextColor={theme.muted} style={[styles.input, { color: theme.text, borderColor: theme.border }]} />
-            <TextInput value={title} onChangeText={setTitle} placeholder="Deck / Stack, z. B. Irregular Verbs" placeholderTextColor={theme.muted} style={[styles.input, { color: theme.text, borderColor: theme.border }]} />
+            <TextInput value={category} onChangeText={setCategory} placeholder={t('language')} placeholderTextColor={theme.muted} style={[styles.input, { color: theme.text, borderColor: theme.border }]} />
+            <TextInput value={folder} onChangeText={setFolder} placeholder={t('folderPlaceholder')} placeholderTextColor={theme.muted} style={[styles.input, { color: theme.text, borderColor: theme.border }]} />
+            <TextInput value={lesson} onChangeText={setLesson} placeholder={t('lessonPlaceholder')} placeholderTextColor={theme.muted} style={[styles.input, { color: theme.text, borderColor: theme.border }]} />
+            <TextInput value={title} onChangeText={setTitle} placeholder={t('deckPlaceholder')} placeholderTextColor={theme.muted} style={[styles.input, { color: theme.text, borderColor: theme.border }]} />
             <View style={styles.modalActions}>
               <Pressable style={[styles.secondaryButton, { borderColor: theme.border }]} onPress={() => setIsDeckModalOpen(false)}>
                 <Text style={[styles.secondaryText, { color: theme.text }]}>{t('cancel')}</Text>
@@ -199,7 +199,7 @@ export default function DecksScreen() {
           <View style={[styles.modal, { backgroundColor: theme.surface }]}> 
             <Text style={[styles.modalTitle, { color: theme.text }]}>{t('cards')} · {selectedDeck?.title}</Text>
             <View style={styles.inputBlock}>
-              <TextInput value={front} onChangeText={setFront} placeholder="Vorderseite / Frage" placeholderTextColor={theme.muted} multiline style={[styles.input, styles.textArea, { color: theme.text, borderColor: theme.border }]} />
+              <TextInput value={front} onChangeText={setFront} placeholder={t('frontPlaceholder')} placeholderTextColor={theme.muted} multiline style={[styles.input, styles.textArea, { color: theme.text, borderColor: theme.border }]} />
               <Pressable style={[styles.dictationButton, { backgroundColor: theme.elevated }]} onPress={() => startDictation('front')}>
                 <Text style={[styles.dictationButtonText, { color: theme.text }]}>{dictationTarget === 'front' ? '...' : t('recordFront')}</Text>
               </Pressable>

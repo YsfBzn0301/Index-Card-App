@@ -19,6 +19,8 @@ export const supportedLanguages: SupportedLanguage[] = [
 export const defaultLanguageCode: SupportedLanguageCode = 'de-DE';
 
 type TranslationKey =
+  | 'active'
+  | 'activeLanguage'
   | 'again'
   | 'answer'
   | 'cards'
@@ -28,6 +30,8 @@ type TranslationKey =
   | 'cardDeleteTitle'
   | 'conceptBody'
   | 'conceptTitle'
+  | 'deck'
+  | 'deckPlaceholder'
   | 'done'
   | 'decks'
   | 'deckDelete'
@@ -41,10 +45,14 @@ type TranslationKey =
   | 'developmentBuildLink'
   | 'developmentBuildTitle'
   | 'front'
+  | 'frontPlaceholder'
+  | 'folderPlaceholder'
   | 'good'
   | 'home'
+  | 'heroTitle'
   | 'knownCards'
   | 'language'
+  | 'lessonPlaceholder'
   | 'listen'
   | 'mastered'
   | 'newDeck'
@@ -70,12 +78,15 @@ type TranslationKey =
   | 'speechUnavailable'
   | 'status'
   | 'study'
+  | 'themeMode'
   | 'tapToFlip';
 
 type TranslationMap = Record<TranslationKey, string>;
 
 const translations: Record<SupportedLanguageCode, TranslationMap> = {
   'de-DE': {
+    active: 'aktiv',
+    activeLanguage: 'Aktiv',
     again: 'Nochmal',
     answer: 'Antwort',
     cards: 'Karten',
@@ -85,6 +96,8 @@ const translations: Record<SupportedLanguageCode, TranslationMap> = {
     cardDeleteTitle: 'Karte löschen?',
     conceptBody: 'Offline-first Karteikarten-App für Schüler, Studierende und junge Erwachsene. Fokus: schnelle Deck-Erstellung, kurze Sessions, sichtbarer Fortschritt und ein verspieltes Interface.',
     conceptTitle: 'App-Konzept',
+    deck: 'Deck',
+    deckPlaceholder: 'Deck / Stack, z. B. Irregular Verbs',
     done: 'Fertig',
     decks: 'Decks',
     deckDelete: 'Deck löschen',
@@ -98,10 +111,14 @@ const translations: Record<SupportedLanguageCode, TranslationMap> = {
     developmentBuildLink: 'Development-Build-APK öffnen',
     developmentBuildTitle: 'Spracheingabe aktivieren',
     front: 'Vorderseite',
+    frontPlaceholder: 'Vorderseite / Frage',
+    folderPlaceholder: 'Unterordner, z. B. Vokabeln',
     good: 'Gewusst',
     home: 'Start',
+    heroTitle: 'Heute kurz lernen, morgen locker abrufen.',
     knownCards: 'gemeistert',
     language: 'Sprache',
+    lessonPlaceholder: 'Lektion, z. B. Unit 5',
     listen: 'Vorlesen',
     mastered: 'gemeistert',
     newDeck: 'Neues Deck',
@@ -127,9 +144,12 @@ const translations: Record<SupportedLanguageCode, TranslationMap> = {
     speechUnavailable: 'Diktieren braucht eine Development Build mit Mikrofonberechtigung.',
     status: 'Status',
     study: 'Lernen',
+    themeMode: 'Theme',
     tapToFlip: 'Tippen zum Drehen',
   },
   'en-US': {
+    active: 'active',
+    activeLanguage: 'Active',
     again: 'Again',
     answer: 'Answer',
     cards: 'Cards',
@@ -139,6 +159,8 @@ const translations: Record<SupportedLanguageCode, TranslationMap> = {
     cardDeleteTitle: 'Delete card?',
     conceptBody: 'Offline-first flashcard app for pupils, students, and young adults. Focus: quick deck creation, short sessions, visible progress, and a playful interface.',
     conceptTitle: 'App concept',
+    deck: 'Deck',
+    deckPlaceholder: 'Deck / stack, e.g. Irregular Verbs',
     done: 'Done',
     decks: 'Decks',
     deckDelete: 'Delete deck',
@@ -152,10 +174,14 @@ const translations: Record<SupportedLanguageCode, TranslationMap> = {
     developmentBuildLink: 'Open development build APK',
     developmentBuildTitle: 'Enable voice input',
     front: 'Front',
+    frontPlaceholder: 'Front / question',
+    folderPlaceholder: 'Folder, e.g. Vocabulary',
     good: 'Known',
     home: 'Home',
+    heroTitle: 'Study briefly today, recall easily tomorrow.',
     knownCards: 'mastered',
     language: 'Language',
+    lessonPlaceholder: 'Lesson, e.g. Unit 5',
     listen: 'Listen',
     mastered: 'mastered',
     newDeck: 'New deck',
@@ -181,9 +207,12 @@ const translations: Record<SupportedLanguageCode, TranslationMap> = {
     speechUnavailable: 'Dictation requires a development build with microphone permission.',
     status: 'Status',
     study: 'Study',
+    themeMode: 'Theme',
     tapToFlip: 'Tap to flip',
   },
   'tr-TR': {
+    active: 'aktif',
+    activeLanguage: 'Aktif',
     again: 'Tekrar',
     answer: 'Cevap',
     cards: 'Kartlar',
@@ -193,6 +222,8 @@ const translations: Record<SupportedLanguageCode, TranslationMap> = {
     cardDeleteTitle: 'Kart silinsin mi?',
     conceptBody: 'Ogrenciler ve genc yetiskinler icin offline-first kart uygulamasi. Odak: hizli deste olusturma, kisa seanslar, gorunur ilerleme ve eglenceli arayuz.',
     conceptTitle: 'Uygulama konsepti',
+    deck: 'Deste',
+    deckPlaceholder: 'Deste / stack, orn. Irregular Verbs',
     done: 'Bitti',
     decks: 'Desteler',
     deckDelete: 'Desteyi sil',
@@ -206,10 +237,14 @@ const translations: Record<SupportedLanguageCode, TranslationMap> = {
     developmentBuildLink: 'Development build APKyi ac',
     developmentBuildTitle: 'Sesli girisi etkinlestir',
     front: 'On yuz',
+    frontPlaceholder: 'On yuz / soru',
+    folderPlaceholder: 'Alt klasor, orn. Kelimeler',
     good: 'Bildim',
     home: 'Baslangic',
+    heroTitle: 'Bugun kisa calis, yarin rahat hatirla.',
     knownCards: 'tamamlandi',
     language: 'Dil',
+    lessonPlaceholder: 'Ders, orn. Unit 5',
     listen: 'Dinle',
     mastered: 'tamamlandi',
     newDeck: 'Yeni deste',
@@ -235,9 +270,12 @@ const translations: Record<SupportedLanguageCode, TranslationMap> = {
     speechUnavailable: 'Dikte icin mikrofon izinli development build gerekir.',
     status: 'Durum',
     study: 'Calis',
+    themeMode: 'Tema',
     tapToFlip: 'Cevirmek icin dokun',
   },
   'sr-RS': {
+    active: 'aktivno',
+    activeLanguage: 'Aktivno',
     again: 'Ponovo',
     answer: 'Odgovor',
     cards: 'Kartice',
@@ -247,6 +285,8 @@ const translations: Record<SupportedLanguageCode, TranslationMap> = {
     cardDeleteTitle: 'Obrisati karticu?',
     conceptBody: 'Offline-first aplikacija za kartice za učenike, studente i mlade odrasle. Fokus: brzo kreiranje špilova, kratke sesije, vidljiv napredak i razigran interfejs.',
     conceptTitle: 'Koncept aplikacije',
+    deck: 'Špil',
+    deckPlaceholder: 'Špil / stack, npr. Irregular Verbs',
     done: 'Gotovo',
     decks: 'Spilovi',
     deckDelete: 'Obriši špil',
@@ -260,10 +300,14 @@ const translations: Record<SupportedLanguageCode, TranslationMap> = {
     developmentBuildLink: 'Otvori development build APK',
     developmentBuildTitle: 'Omogući glasovni unos',
     front: 'Prednja strana',
+    frontPlaceholder: 'Prednja strana / pitanje',
+    folderPlaceholder: 'Folder, npr. Vokabular',
     good: 'Znam',
     home: 'Pocetna',
+    heroTitle: 'Uči kratko danas, sutra se lakše seti.',
     knownCards: 'savladano',
     language: 'Jezik',
+    lessonPlaceholder: 'Lekcija, npr. Unit 5',
     listen: 'Pusti',
     mastered: 'savladano',
     newDeck: 'Novi špil',
@@ -289,9 +333,12 @@ const translations: Record<SupportedLanguageCode, TranslationMap> = {
     speechUnavailable: 'Diktiranje zahteva development build sa dozvolom za mikrofon.',
     status: 'Status',
     study: 'Ucenje',
+    themeMode: 'Tema',
     tapToFlip: 'Dodirni za okretanje',
   },
   'hr-HR': {
+    active: 'aktivno',
+    activeLanguage: 'Aktivno',
     again: 'Ponovno',
     answer: 'Odgovor',
     cards: 'Kartice',
@@ -301,6 +348,8 @@ const translations: Record<SupportedLanguageCode, TranslationMap> = {
     cardDeleteTitle: 'Obrisati karticu?',
     conceptBody: 'Offline-first aplikacija za kartice za učenike, studente i mlade odrasle. Fokus: brzo stvaranje špilova, kratke sesije, vidljiv napredak i razigrano sučelje.',
     conceptTitle: 'Koncept aplikacije',
+    deck: 'Špil',
+    deckPlaceholder: 'Špil / stack, npr. Irregular Verbs',
     done: 'Gotovo',
     decks: 'Spilovi',
     deckDelete: 'Obriši špil',
@@ -314,10 +363,14 @@ const translations: Record<SupportedLanguageCode, TranslationMap> = {
     developmentBuildLink: 'Otvori development build APK',
     developmentBuildTitle: 'Omogući glasovni unos',
     front: 'Prednja strana',
+    frontPlaceholder: 'Prednja strana / pitanje',
+    folderPlaceholder: 'Mapa, npr. Vokabular',
     good: 'Znam',
     home: 'Pocetna',
+    heroTitle: 'Uči kratko danas, sutra se lakše prisjeti.',
     knownCards: 'savladano',
     language: 'Jezik',
+    lessonPlaceholder: 'Lekcija, npr. Unit 5',
     listen: 'Pusti',
     mastered: 'savladano',
     newDeck: 'Novi špil',
@@ -343,9 +396,12 @@ const translations: Record<SupportedLanguageCode, TranslationMap> = {
     speechUnavailable: 'Diktiranje zahtijeva development build s dozvolom za mikrofon.',
     status: 'Status',
     study: 'Ucenje',
+    themeMode: 'Tema',
     tapToFlip: 'Dodirni za okretanje',
   },
   'es-ES': {
+    active: 'activo',
+    activeLanguage: 'Activo',
     again: 'Otra vez',
     answer: 'Respuesta',
     cards: 'Tarjetas',
@@ -355,6 +411,8 @@ const translations: Record<SupportedLanguageCode, TranslationMap> = {
     cardDeleteTitle: '¿Eliminar tarjeta?',
     conceptBody: 'App de tarjetas offline-first para estudiantes y jóvenes adultos. Enfoque: creación rápida de mazos, sesiones cortas, progreso visible e interfaz lúdica.',
     conceptTitle: 'Concepto de app',
+    deck: 'Mazo',
+    deckPlaceholder: 'Mazo / stack, p. ej. Irregular Verbs',
     done: 'Listo',
     decks: 'Mazos',
     deckDelete: 'Eliminar mazo',
@@ -368,10 +426,14 @@ const translations: Record<SupportedLanguageCode, TranslationMap> = {
     developmentBuildLink: 'Abrir APK de development build',
     developmentBuildTitle: 'Activar entrada por voz',
     front: 'Anverso',
+    frontPlaceholder: 'Anverso / pregunta',
+    folderPlaceholder: 'Carpeta, p. ej. Vocabulario',
     good: 'Sabido',
     home: 'Inicio',
+    heroTitle: 'Estudia un poco hoy, recuerda fácil mañana.',
     knownCards: 'dominadas',
     language: 'Idioma',
+    lessonPlaceholder: 'Lección, p. ej. Unit 5',
     listen: 'Escuchar',
     mastered: 'dominadas',
     newDeck: 'Nuevo mazo',
@@ -397,9 +459,12 @@ const translations: Record<SupportedLanguageCode, TranslationMap> = {
     speechUnavailable: 'El dictado requiere una development build con permiso de microfono.',
     status: 'Estado',
     study: 'Estudiar',
+    themeMode: 'Tema',
     tapToFlip: 'Toca para girar',
   },
   'it-IT': {
+    active: 'attivo',
+    activeLanguage: 'Attivo',
     again: 'Ancora',
     answer: 'Risposta',
     cards: 'Carte',
@@ -409,6 +474,8 @@ const translations: Record<SupportedLanguageCode, TranslationMap> = {
     cardDeleteTitle: 'Eliminare carta?',
     conceptBody: 'App di flashcard offline-first per studenti e giovani adulti. Focus: creazione rapida dei mazzi, sessioni brevi, progresso visibile e interfaccia giocosa.',
     conceptTitle: 'Concetto app',
+    deck: 'Mazzo',
+    deckPlaceholder: 'Mazzo / stack, es. Irregular Verbs',
     done: 'Fatto',
     decks: 'Mazzi',
     deckDelete: 'Elimina mazzo',
@@ -422,10 +489,14 @@ const translations: Record<SupportedLanguageCode, TranslationMap> = {
     developmentBuildLink: 'Apri APK development build',
     developmentBuildTitle: 'Abilita input vocale',
     front: 'Fronte',
+    frontPlaceholder: 'Fronte / domanda',
+    folderPlaceholder: 'Cartella, es. Vocabolario',
     good: 'Lo so',
     home: 'Home',
+    heroTitle: 'Studia poco oggi, ricorda meglio domani.',
     knownCards: 'imparate',
     language: 'Lingua',
+    lessonPlaceholder: 'Lezione, es. Unit 5',
     listen: 'Ascolta',
     mastered: 'imparate',
     newDeck: 'Nuovo mazzo',
@@ -451,6 +522,7 @@ const translations: Record<SupportedLanguageCode, TranslationMap> = {
     speechUnavailable: 'La dettatura richiede una development build con permesso microfono.',
     status: 'Stato',
     study: 'Studia',
+    themeMode: 'Tema',
     tapToFlip: 'Tocca per girare',
   },
 };

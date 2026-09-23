@@ -30,7 +30,7 @@ export default function SettingsScreen() {
         <Text style={[styles.title, { color: theme.text }]}>{t('settings')}</Text>
         <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
           <Text style={[styles.panelTitle, { color: theme.text }]}>{t('language')}</Text>
-          <Text style={[styles.copy, { color: theme.muted }]}>Aktiv: {languageLabel}</Text>
+          <Text style={[styles.copy, { color: theme.muted }]}>{t('activeLanguage')}: {languageLabel}</Text>
           <View style={styles.languageGrid}>
             {supportedLanguages.map((language) => {
               const isActive = language.code === languageCode;
@@ -62,7 +62,7 @@ export default function SettingsScreen() {
         </View>
         <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
           <Text style={[styles.panelTitle, { color: theme.text }]}>{t('status')}</Text>
-          <Text style={[styles.copy, { color: theme.muted }]}>Theme: {colorScheme === 'dark' ? 'Dark Mode' : 'Light Mode'} automatisch</Text>
+          <Text style={[styles.copy, { color: theme.muted }]}>{t('themeMode')}: {colorScheme === 'dark' ? 'Dark Mode' : 'Light Mode'}</Text>
           <Text style={[styles.copy, { color: theme.muted }]}>{t('cards')}: {masteredCards}/{totalCards} {t('mastered')}</Text>
         </View>
         <Pressable style={[styles.resetButton, { backgroundColor: theme.primary }]} onPress={confirmReset}>
