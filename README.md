@@ -61,6 +61,19 @@ Danach den QR-Code mit Expo Go scannen. Fuer native Features ausserhalb von Expo
 
 Hinweis: Text-to-Speech funktioniert mit `expo-speech` in Expo Go. Speech-to-Text nutzt `expo-speech-recognition` und benoetigt eine Development Build oder einen installierten nativen Build, weil Mikrofon- und Speech-Recognition-Permissions nativ eingebunden werden.
 
+## Datenhaltung und Offline-Nutzung
+
+- Alle Kategorien, Ordner, Lektionen, Decks, Karten, Lernfortschritte und Erinnerungseinstellungen werden lokal per `@react-native-async-storage/async-storage` gespeichert.
+- Die App ist offline nutzbar; fuer die Kernfunktionen ist kein externer Server erforderlich.
+- Lokale Erinnerungen werden mit `expo-notifications` direkt auf dem Geraet geplant.
+- Die App nutzt keine eigene Backend-Infrastruktur fuer Erinnerungen oder Karteikarten-Daten.
+
+## Lokale Push-Notifications
+
+- Pro Deck koennen Datum, Uhrzeit, Vorab-Erinnerung, eigene Nachricht und optionales Vorlesen beim Oeffnen eingerichtet werden.
+- Notifications werden lokal geplant und funktionieren ohne externen Push-Server.
+- Fuer native Notification-Funktionalitaet muss eine Development Build oder installierte native App verwendet werden.
+
 ## Android APK bauen
 
 ```bash
@@ -69,6 +82,18 @@ npx eas-cli@latest build --platform android --profile preview
 
 Das `preview`-Profil erzeugt eine APK, die lokal auf Android installiert werden kann.
 
+Fuer Development Builds mit nativen Modulen wie Speech Recognition und Notifications:
+
+```bash
+npx eas-cli@latest build --platform android --profile development
+```
+
+Alternativ lokal mit Android Studio/Gradle:
+
+```bash
+npx expo run:android
+```
+
 ## iOS Build
 
 ```bash
@@ -76,6 +101,12 @@ npx eas-cli@latest build --platform ios --profile preview
 ```
 
 Fuer Installation auf einem echten iPhone brauchst du ein Apple Developer Konto und ein korrekt registriertes Geraet bzw. TestFlight/App-Store-Verteilung.
+
+Alternativ lokal mit Xcode:
+
+```bash
+npx expo run:ios
+```
 
 ## Qualitaetschecks
 
