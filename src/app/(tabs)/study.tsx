@@ -48,7 +48,8 @@ export default function StudyScreen() {
     setIsFlipped(false);
   }
 
-  const rotateY = flipValue.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] });
+  const frontRotateY = flipValue.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] });
+  const backRotateY = flipValue.interpolate({ inputRange: [0, 1], outputRange: ['180deg', '360deg'] });
 
   if (!deck || !card) {
     return (
@@ -75,10 +76,15 @@ export default function StudyScreen() {
         </View>
 
         <Pressable onPress={flipCard} style={styles.cardTouchable}>
-          <Animated.View style={[styles.studyCard, { backgroundColor: isFlipped ? deck.accent : theme.surface, borderColor: theme.border, transform: [{ rotateY }] }]}> 
-            <Text style={[styles.cardHint, { color: isFlipped ? '#FFFFFF' : theme.muted }]}>{isFlipped ? 'Antwort' : 'Frage'}</Text>
-            <Text style={[styles.cardText, { color: isFlipped ? '#FFFFFF' : theme.text }]}>{isFlipped ? card.back : card.front}</Text>
-            <Text style={[styles.tapHint, { color: isFlipped ? '#FFFFFF' : theme.muted }]}>Tippen zum Drehen</Text>
+          <Animated.View style={[styles.studyCard, { backgroundColor: theme.surface, borderColor: theme.border, transform: [{ perspective: 1200 }, { rotateY: frontRotateY }] }]}> 
+            <Text style={[styles.cardHint, { color: theme.muted }]}>Frage</Text>
+            <Text style={[styles.cardText, { color: theme.text }]}>{card.front}</Text>
+            <Text style={[styles.tapHint, { color: theme.muted }]}>Tippen zum Drehen</Text>
+          </Animated.View>
+          <Animated.View style={[styles.studyCard, { backgroundColor: deck.accent, borderColor: deck.accent, transform: [{ perspective: 1200 }, { rotateY: backRotateY }] }]}> 
+            <Text style={[styles.cardHint, styles.lightText]}>Antwort</Text>
+            <Text style={[styles.cardText, styles.lightText]}>{card.back}</Text>
+            <Text style={[styles.tapHint, styles.lightText]}>Tippen zum Drehen</Text>
           </Animated.View>
         </Pressable>
 
@@ -129,10 +135,14 @@ const styles = StyleSheet.create({
   },
   cardTouchable: {
     flex: 1,
+    minHeight: 360,
   },
   studyCard: {
-    flex: 1,
-    minHeight: 360,
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
     borderWidth: 1,
     borderRadius: 34,
     padding: 24,
@@ -153,6 +163,9 @@ const styles = StyleSheet.create({
   tapHint: {
     fontSize: 13,
     fontWeight: '800',
+  },
+  lightText: {
+    color: '#FFFFFF',
   },
   actions: {
     flexDirection: 'row',

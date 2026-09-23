@@ -12,6 +12,7 @@ type DeckCardProps = {
 export function DeckCard({ deck, theme }: DeckCardProps) {
   const completedCards = deck.cards.filter((card) => card.mastery >= 3).length;
   const progress = deck.cards.length === 0 ? 0 : Math.round((completedCards / deck.cards.length) * 100);
+  const path = `${deck.category} / ${deck.folder} / ${deck.lesson}`;
 
   return (
     <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
@@ -20,7 +21,7 @@ export function DeckCard({ deck, theme }: DeckCardProps) {
       </View>
       <View style={styles.content}>
         <Text style={[styles.title, { color: theme.text }]}>{deck.title}</Text>
-        <Text style={[styles.subject, { color: theme.muted }]}>{deck.subject}</Text>
+        <Text style={[styles.subject, { color: theme.muted }]}>{path}</Text>
         <View style={[styles.track, { backgroundColor: theme.elevated }]}> 
           <View style={[styles.fill, { width: `${progress}%`, backgroundColor: deck.accent }]} />
         </View>

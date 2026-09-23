@@ -13,16 +13,21 @@ export default function DecksScreen() {
   const [isDeckModalOpen, setIsDeckModalOpen] = useState(false);
   const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
   const [title, setTitle] = useState('');
-  const [subject, setSubject] = useState('');
+  const [category, setCategory] = useState('');
+  const [folder, setFolder] = useState('');
+  const [lesson, setLesson] = useState('');
   const [front, setFront] = useState('');
   const [back, setBack] = useState('');
 
   const selectedDeck = decks.find((deck) => deck.id === selectedDeckId);
+  const categories = Array.from(new Set(decks.map((deck) => deck.category)));
 
   function saveDeck() {
-    createDeck(title, subject);
+    createDeck(title, category, folder, lesson);
     setTitle('');
-    setSubject('');
+    setCategory('');
+    setFolder('');
+    setLesson('');
     setIsDeckModalOpen(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
   }
@@ -45,26 +50,55 @@ export default function DecksScreen() {
         <View style={styles.header}>
           <View>
             <Text style={[styles.title, { color: theme.text }]}>Decks</Text>
-            <Text style={[styles.subtitle, { color: theme.muted }]}>Erstelle Sets und fuege Karten hinzu.</Text>
+            <Text style={[styles.subtitle, { color: theme.muted }]}>Fach / Ordner / Lektion / Deck</Text>
           </View>
           <Pressable style={[styles.addButton, { backgroundColor: theme.primary }]} onPress={() => setIsDeckModalOpen(true)}>
             <Text style={styles.addButtonText}>+</Text>
           </Pressable>
         </View>
 
-        {decks.map((deck) => (
-          <Pressable key={deck.id} onPress={() => setSelectedDeckId(deck.id)}>
-            <DeckCard deck={deck} theme={theme} />
-          </Pressable>
-        ))}
+        {categories.map((currentCategory) => {
+          const categoryDecks = decks.filter((deck) => deck.category === currentCategory);
+          const folders = Array.from(new Set(categoryDecks.map((deck) => deck.folder)));
+
+          return (
+            <View key={currentCategory} style={styles.hierarchyGroup}>
+              <Text style={[styles.categoryTitle, { color: theme.text }]}>{currentCategory}</Text>
+              {folders.map((currentFolder) => {
+                const folderDecks = categoryDecks.filter((deck) => deck.folder === currentFolder);
+                const lessons = Array.from(new Set(folderDecks.map((deck) => deck.lesson)));
+
+                return (
+                  <View key={`${currentCategory}-${currentFolder}`} style={[styles.folderGroup, { borderColor: theme.border }]}> 
+                    <Text style={[styles.folderTitle, { color: theme.muted }]}>{currentFolder}</Text>
+                    {lessons.map((currentLesson) => (
+                      <View key={`${currentCategory}-${currentFolder}-${currentLesson}`} style={styles.lessonGroup}>
+                        <Text style={[styles.lessonTitle, { color: theme.text }]}>{currentLesson}</Text>
+                        {folderDecks
+                          .filter((deck) => deck.lesson === currentLesson)
+                          .map((deck) => (
+                            <Pressable key={deck.id} onPress={() => setSelectedDeckId(deck.id)}>
+                              <DeckCard deck={deck} theme={theme} />
+                            </Pressable>
+                          ))}
+                      </View>
+                    ))}
+                  </View>
+                );
+              })}
+            </View>
+          );
+        })}
       </ScrollView>
 
       <Modal transparent visible={isDeckModalOpen} animationType="slide" onRequestClose={() => setIsDeckModalOpen(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalBackdrop}>
           <View style={[styles.modal, { backgroundColor: theme.surface }]}> 
             <Text style={[styles.modalTitle, { color: theme.text }]}>Neues Deck</Text>
-            <TextInput value={title} onChangeText={setTitle} placeholder="Titel" placeholderTextColor={theme.muted} style={[styles.input, { color: theme.text, borderColor: theme.border }]} />
-            <TextInput value={subject} onChangeText={setSubject} placeholder="Fach" placeholderTextColor={theme.muted} style={[styles.input, { color: theme.text, borderColor: theme.border }]} />
+            <TextInput value={category} onChangeText={setCategory} placeholder="Hauptkategorie / Fach, z. B. Englisch" placeholderTextColor={theme.muted} style={[styles.input, { color: theme.text, borderColor: theme.border }]} />
+            <TextInput value={folder} onChangeText={setFolder} placeholder="Unterordner, z. B. Vokabeln" placeholderTextColor={theme.muted} style={[styles.input, { color: theme.text, borderColor: theme.border }]} />
+            <TextInput value={lesson} onChangeText={setLesson} placeholder="Lektion, z. B. Unit 5" placeholderTextColor={theme.muted} style={[styles.input, { color: theme.text, borderColor: theme.border }]} />
+            <TextInput value={title} onChangeText={setTitle} placeholder="Deck / Stack, z. B. Irregular Verbs" placeholderTextColor={theme.muted} style={[styles.input, { color: theme.text, borderColor: theme.border }]} />
             <View style={styles.modalActions}>
               <Pressable style={[styles.secondaryButton, { borderColor: theme.border }]} onPress={() => setIsDeckModalOpen(false)}>
                 <Text style={[styles.secondaryText, { color: theme.text }]}>Abbrechen</Text>
@@ -134,6 +168,32 @@ const styles = StyleSheet.create({
     fontSize: 32,
     lineHeight: 34,
     fontWeight: '700',
+  },
+  hierarchyGroup: {
+    gap: 12,
+    marginTop: 8,
+  },
+  categoryTitle: {
+    fontSize: 23,
+    fontWeight: '900',
+  },
+  folderGroup: {
+    borderLeftWidth: 3,
+    paddingLeft: 12,
+    gap: 12,
+  },
+  folderTitle: {
+    fontSize: 15,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 0,
+  },
+  lessonGroup: {
+    gap: 10,
+  },
+  lessonTitle: {
+    fontSize: 17,
+    fontWeight: '900',
   },
   modalBackdrop: {
     flex: 1,

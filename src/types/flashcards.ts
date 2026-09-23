@@ -12,6 +12,9 @@ export type Deck = {
   id: string;
   title: string;
   subject: string;
+  category: string;
+  folder: string;
+  lesson: string;
   accent: string;
   emoji: string;
   cards: Flashcard[];

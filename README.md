@@ -7,6 +7,7 @@ Index Card ist eine moderne Cross-Platform-Karteikarten-App fuer iOS und Android
 - Zielgruppe: Schueler, Studierende und junge Erwachsene.
 - Look and feel: farbenfroh, playful, grosse Touch-Zonen, klare Karten, schnelle Aktionen.
 - Theme: automatische Anpassung an das Systemdesign ueber Light/Dark Mode.
+- Struktur: Hauptkategorie/Fach, Unterordner, Lektion und darunter das jeweilige Karteikarten-Deck.
 - Datenhaltung: offline-first mit AsyncStorage auf dem Geraet.
 - Lernlogik: Karten starten bei Mastery 0, steigen bei "Gewusst" bis 3 und werden bei "Nochmal" zurueckgesetzt.
 - Navigation: Expo Router mit Tabs fuer Start, Decks, Lernen und Mehr.
@@ -20,7 +21,7 @@ src/
     (tabs)/
       _layout.tsx        Tab-Navigation
       index.tsx          Dashboard
-      decks.tsx          Decks und Kartenerstellung
+      decks.tsx          Hierarchie aus Fach, Ordner, Lektion und Deck
       study.tsx          Lernmodus mit Flip-Karte
       settings.tsx       Konzept, Status, Reset
   components/
@@ -34,6 +35,19 @@ src/
   types/
     flashcards.ts        Datenmodelle
 ```
+
+## Lernstruktur
+
+Decks liegen in einer vierstufigen Hierarchie:
+
+```text
+Hauptkategorie / Fach
+  Unterordner
+    Unter-Unterordner / Lektion
+      Karteikarten-Deck / Stack
+```
+
+Beispiel: `Englisch / Vokabeln / Unit 5 / Irregular Verbs`.
 
 ## Lokal starten
 

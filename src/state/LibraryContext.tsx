@@ -14,7 +14,7 @@ type LibraryContextValue = {
   masteredCards: number;
   dueCards: Flashcard[];
   dueDecks: Deck[];
-  createDeck: (title: string, subject: string) => void;
+  createDeck: (title: string, category: string, folder: string, lesson: string) => void;
   addCard: (deckId: string, front: string, back: string) => void;
   reviewCard: (deckId: string, cardId: string, grade: ReviewGrade) => void;
   resetLibrary: () => void;
@@ -28,6 +28,18 @@ function createId(prefix: string) {
 
 function isDue(card: Flashcard) {
   return card.mastery < 3;
+}
+
+function normalizeDeck(deck: Deck): Deck {
+  const subject = deck.subject || deck.category || 'Allgemein';
+
+  return {
+    ...deck,
+    subject,
+    category: deck.category || subject,
+    folder: deck.folder || 'Allgemein',
+    lesson: deck.lesson || 'Lektion 1',
+  };
 }
 
 export function LibraryProvider({ children }: PropsWithChildren) {
@@ -44,7 +56,7 @@ export function LibraryProvider({ children }: PropsWithChildren) {
       }
 
       if (saved) {
-        setDecks(JSON.parse(saved) as Deck[]);
+        setDecks((JSON.parse(saved) as Deck[]).map(normalizeDeck));
       }
       setIsReady(true);
     }
@@ -78,13 +90,17 @@ export function LibraryProvider({ children }: PropsWithChildren) {
       masteredCards,
       dueCards,
       dueDecks,
-      createDeck: (title, subject) => {
+      createDeck: (title, category, folder, lesson) => {
         const now = new Date().toISOString();
+        const trimmedCategory = category.trim() || 'Allgemein';
         setDecks((currentDecks) => [
           {
             id: createId('deck'),
             title: title.trim() || 'Neues Deck',
-            subject: subject.trim() || 'Allgemein',
+            subject: trimmedCategory,
+            category: trimmedCategory,
+            folder: folder.trim() || 'Vokabeln',
+            lesson: lesson.trim() || 'Lektion 1',
             accent: deckAccents[currentDecks.length % deckAccents.length],
             emoji: 'NEW',
             cards: [],
