@@ -11,6 +11,7 @@ Index Card ist eine moderne Cross-Platform-Karteikarten-App fuer iOS und Android
 - Datenhaltung: offline-first mit AsyncStorage auf dem Geraet.
 - Lernlogik: Karten starten bei Mastery 0, steigen bei "Gewusst" bis 3 und werden bei "Nochmal" zurueckgesetzt.
 - Navigation: Expo Router mit Tabs fuer Start, Decks, Lernen und Mehr.
+- Sprache: UI-Sprache, Vorlesen und Diktieren unterstuetzen Deutsch, Englisch, Tuerkisch, Serbisch, Kroatisch, Spanisch und Italienisch.
 
 ## Ordnerstruktur
 
@@ -57,6 +58,8 @@ npx expo start
 ```
 
 Danach den QR-Code mit Expo Go scannen. Fuer native Features ausserhalb von Expo Go eine Development Build verwenden.
+
+Hinweis: Text-to-Speech funktioniert mit `expo-speech` in Expo Go. Speech-to-Text nutzt `expo-speech-recognition` und benoetigt eine Development Build oder einen installierten nativen Build, weil Mikrofon- und Speech-Recognition-Permissions nativ eingebunden werden.
 
 ## Android APK bauen
 

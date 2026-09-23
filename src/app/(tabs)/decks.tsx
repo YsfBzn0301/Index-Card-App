@@ -4,14 +4,19 @@ import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, St
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DeckCard } from '../../components/DeckCard';
+import { useLanguage } from '../../state/LanguageContext';
 import { useLibrary } from '../../state/LibraryContext';
 import { createTheme } from '../../theme/palette';
+
+type DictationTarget = 'front' | 'back';
 
 export default function DecksScreen() {
   const theme = createTheme(useColorScheme());
   const { decks, createDeck, addCard, deleteCard } = useLibrary();
+  const { languageCode, t } = useLanguage();
   const [isDeckModalOpen, setIsDeckModalOpen] = useState(false);
   const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
+  const [dictationTarget, setDictationTarget] = useState<DictationTarget | null>(null);
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('');
   const [folder, setFolder] = useState('');
@@ -54,12 +59,66 @@ export default function DecksScreen() {
     ]);
   }
 
+  async function startDictation(target: DictationTarget) {
+    try {
+      const { ExpoSpeechRecognitionModule } = await import('expo-speech-recognition');
+      const permissions = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+
+      if (!permissions.granted || !ExpoSpeechRecognitionModule.isRecognitionAvailable()) {
+        Alert.alert(t('language'), t('speechUnavailable'));
+        return;
+      }
+
+      setDictationTarget(target);
+
+      let cleanup = () => undefined;
+      const resultListener = ExpoSpeechRecognitionModule.addListener('result', (event) => {
+        const transcript = event.results[0]?.transcript?.trim();
+        if (!transcript) {
+          return;
+        }
+
+        const setText = target === 'front' ? setFront : setBack;
+        setText((currentText) => (currentText.trim() ? `${currentText.trim()} ${transcript}` : transcript));
+      });
+      const endListener = ExpoSpeechRecognitionModule.addListener('end', () => {
+        setDictationTarget(null);
+        cleanup();
+      });
+      const errorListener = ExpoSpeechRecognitionModule.addListener('error', (event) => {
+        setDictationTarget(null);
+        cleanup();
+        Alert.alert(t('language'), event.message || t('speechUnavailable'));
+      });
+
+      cleanup = () => {
+        resultListener.remove();
+        endListener.remove();
+        errorListener.remove();
+      };
+
+      ExpoSpeechRecognitionModule.start({
+        lang: languageCode,
+        interimResults: false,
+        continuous: false,
+        maxAlternatives: 1,
+        iosTaskHint: 'dictation',
+        androidIntentOptions: {
+          EXTRA_LANGUAGE_MODEL: 'free_form',
+        },
+      });
+    } catch {
+      setDictationTarget(null);
+      Alert.alert(t('language'), t('speechUnavailable'));
+    }
+  }
+
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <View>
-            <Text style={[styles.title, { color: theme.text }]}>Decks</Text>
+            <Text style={[styles.title, { color: theme.text }]}>{t('decks')}</Text>
             <Text style={[styles.subtitle, { color: theme.muted }]}>Fach / Ordner / Lektion / Deck</Text>
           </View>
           <Pressable style={[styles.addButton, { backgroundColor: theme.primary }]} onPress={() => setIsDeckModalOpen(true)}>
@@ -125,15 +184,25 @@ export default function DecksScreen() {
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalBackdrop}>
           <View style={[styles.modal, { backgroundColor: theme.surface }]}> 
             <Text style={[styles.modalTitle, { color: theme.text }]}>Karte fuer {selectedDeck?.title}</Text>
-            <TextInput value={front} onChangeText={setFront} placeholder="Vorderseite / Frage" placeholderTextColor={theme.muted} multiline style={[styles.input, styles.textArea, { color: theme.text, borderColor: theme.border }]} />
-            <TextInput value={back} onChangeText={setBack} placeholder="Rueckseite / Antwort" placeholderTextColor={theme.muted} multiline style={[styles.input, styles.textArea, { color: theme.text, borderColor: theme.border }]} />
+            <View style={styles.inputBlock}>
+              <TextInput value={front} onChangeText={setFront} placeholder="Vorderseite / Frage" placeholderTextColor={theme.muted} multiline style={[styles.input, styles.textArea, { color: theme.text, borderColor: theme.border }]} />
+              <Pressable style={[styles.dictationButton, { backgroundColor: theme.elevated }]} onPress={() => startDictation('front')}>
+                <Text style={[styles.dictationButtonText, { color: theme.text }]}>{dictationTarget === 'front' ? '...' : t('recordFront')}</Text>
+              </Pressable>
+            </View>
+            <View style={styles.inputBlock}>
+              <TextInput value={back} onChangeText={setBack} placeholder="Rueckseite / Antwort" placeholderTextColor={theme.muted} multiline style={[styles.input, styles.textArea, { color: theme.text, borderColor: theme.border }]} />
+              <Pressable style={[styles.dictationButton, { backgroundColor: theme.elevated }]} onPress={() => startDictation('back')}>
+                <Text style={[styles.dictationButtonText, { color: theme.text }]}>{dictationTarget === 'back' ? '...' : t('recordBack')}</Text>
+              </Pressable>
+            </View>
             <ScrollView style={styles.cardList} contentContainerStyle={styles.cardListContent} showsVerticalScrollIndicator={false}>
               {selectedDeck?.cards.map((card) => (
                 <View key={card.id} style={[styles.cardRow, { borderColor: theme.border, backgroundColor: theme.elevated }]}> 
                   <View style={styles.cardRowText}>
-                    <Text style={[styles.cardRowLabel, { color: theme.muted }]}>Vorderseite</Text>
+                    <Text style={[styles.cardRowLabel, { color: theme.muted }]}>{t('front')}</Text>
                     <Text style={[styles.cardRowValue, { color: theme.text }]}>{card.front}</Text>
-                    <Text style={[styles.cardRowLabel, { color: theme.muted }]}>Rueckseite</Text>
+                    <Text style={[styles.cardRowLabel, { color: theme.muted }]}>{t('answer')}</Text>
                     <Text style={[styles.cardRowValue, { color: theme.text }]}>{card.back}</Text>
                   </View>
                   <Pressable style={[styles.deleteButton, { backgroundColor: theme.primary }]} onPress={() => confirmDeleteCard(card.id)}>
@@ -144,7 +213,7 @@ export default function DecksScreen() {
             </ScrollView>
             <View style={styles.modalActions}>
               <Pressable style={[styles.secondaryButton, { borderColor: theme.border }]} onPress={() => setSelectedDeckId(null)}>
-                <Text style={[styles.secondaryText, { color: theme.text }]}>Fertig</Text>
+                <Text style={[styles.secondaryText, { color: theme.text }]}>{t('done')}</Text>
               </Pressable>
               <Pressable style={[styles.primaryButton, { backgroundColor: theme.secondary }]} onPress={saveCard}>
                 <Text style={styles.primaryText}>Hinzufuegen</Text>
@@ -246,6 +315,19 @@ const styles = StyleSheet.create({
   textArea: {
     minHeight: 96,
     textAlignVertical: 'top',
+  },
+  inputBlock: {
+    gap: 8,
+  },
+  dictationButton: {
+    alignSelf: 'flex-start',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  dictationButtonText: {
+    fontSize: 12,
+    fontWeight: '900',
   },
   cardList: {
     maxHeight: 220,

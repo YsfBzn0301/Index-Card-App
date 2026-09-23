@@ -1,14 +1,17 @@
 import * as Haptics from 'expo-haptics';
+import * as Speech from 'expo-speech';
 import { useEffect, useState } from 'react';
-import { Animated, Easing, PanResponder, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { Alert, Animated, Easing, PanResponder, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useLanguage } from '../../state/LanguageContext';
 import { useLibrary } from '../../state/LibraryContext';
 import { createTheme } from '../../theme/palette';
 
 export default function StudyScreen() {
   const theme = createTheme(useColorScheme());
   const { dueDecks, reviewCard } = useLibrary();
+  const { languageCode, t } = useLanguage();
   const [deckIndex, setDeckIndex] = useState(0);
   const [cardIndex, setCardIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -17,6 +20,10 @@ export default function StudyScreen() {
   const [completionScale] = useState(() => new Animated.Value(0.82));
   const [completionOpacity] = useState(() => new Animated.Value(0));
   const [sparkleDrift] = useState(() => new Animated.Value(0));
+  const [isSpeechMode, setIsSpeechMode] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [spokenAnswer, setSpokenAnswer] = useState('');
+  const [speechFeedback, setSpeechFeedback] = useState('');
   const deck = dueDecks[deckIndex] ?? dueDecks[0];
   const cards = deck?.cards.filter((card) => card.mastery < 3) ?? [];
   const card = cards[cardIndex] ?? cards[0];
@@ -76,6 +83,16 @@ export default function StudyScreen() {
     Haptics.selectionAsync().catch(() => undefined);
   }
 
+  function speak(text: string) {
+    Speech.stop().finally(() => {
+      Speech.speak(text, {
+        language: languageCode,
+        pitch: 1.02,
+        rate: 0.92,
+      });
+    });
+  }
+
   function review(grade: 'again' | 'good') {
     if (!deck || !card) {
       return;
@@ -83,6 +100,9 @@ export default function StudyScreen() {
 
     reviewCard(deck.id, card.id, grade);
     setIsFlipped(false);
+    setSpokenAnswer('');
+    setSpeechFeedback('');
+    setIsListening(false);
     setCardIndex((currentIndex) => (currentIndex + 1) % Math.max(1, cards.length));
     Haptics.notificationAsync(grade === 'good' ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Warning).catch(() => undefined);
   }
@@ -102,6 +122,140 @@ export default function StudyScreen() {
     setDeckIndex((currentIndex) => (currentIndex + 1) % Math.max(1, dueDecks.length));
     setCardIndex(0);
     setIsFlipped(false);
+    setIsSpeechMode(false);
+    setIsListening(false);
+    setSpokenAnswer('');
+    setSpeechFeedback('');
+  }
+
+  function normalizeAnswer(value: string) {
+    return value
+      .toLocaleLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, ' ')
+      .trim()
+      .replace(/\s+/g, ' ');
+  }
+
+  function enterSpeechMode() {
+    setIsSpeechMode(true);
+    setIsFlipped(false);
+    setSpokenAnswer('');
+    setSpeechFeedback('');
+    Alert.alert(t('speechMode'), t('speechHint'));
+  }
+
+  function leaveSpeechMode() {
+    import('expo-speech-recognition')
+      .then(({ ExpoSpeechRecognitionModule }) => ExpoSpeechRecognitionModule.abort())
+      .catch(() => undefined);
+    setIsSpeechMode(false);
+    setIsListening(false);
+    setSpokenAnswer('');
+    setSpeechFeedback('');
+  }
+
+  async function startAnswerSpeechCheck() {
+    if (!card || isListening) {
+      return;
+    }
+
+    setIsListening(true);
+    setSpokenAnswer('');
+    setSpeechFeedback(t('speechListening'));
+
+    try {
+      const { ExpoSpeechRecognitionModule } = await import('expo-speech-recognition');
+
+      if (!ExpoSpeechRecognitionModule) {
+        const message = 'Native Speech-Erkennung ist in dieser installierten App nicht enthalten. Installiere die neueste Development-Build-APK und oeffne Index Card, nicht Expo Go.';
+        setIsListening(false);
+        setSpeechFeedback(message);
+        Alert.alert(t('speechMode'), message);
+        return;
+      }
+
+      const permissions = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+
+      if (!permissions.granted) {
+        const message = 'Mikrofon oder Spracherkennung wurde nicht erlaubt. Bitte in den App-Einstellungen erlauben und erneut versuchen.';
+        setIsListening(false);
+        setSpeechFeedback(message);
+        Alert.alert(t('speechMode'), message);
+        return;
+      }
+
+      if (!ExpoSpeechRecognitionModule.isRecognitionAvailable()) {
+        const message = 'Auf diesem Geraet ist kein Speech-Recognition-Dienst verfuegbar. Android: Google App oder Speech Recognition & Synthesis installieren/aktivieren. iOS: Siri & Diktieren aktivieren.';
+        setIsListening(false);
+        setSpeechFeedback(message);
+        Alert.alert(t('speechMode'), message);
+        return;
+      }
+
+      setSpeechFeedback(t('speechListening'));
+
+      let cleanup = () => undefined;
+      const resultListener = ExpoSpeechRecognitionModule.addListener('result', (event) => {
+        const transcript = event.results[0]?.transcript?.trim() ?? '';
+        if (!transcript) {
+          return;
+        }
+
+        setSpokenAnswer(transcript);
+
+        if (normalizeAnswer(transcript) === normalizeAnswer(card.back)) {
+          setSpeechFeedback(t('speechCorrect'));
+          cleanup();
+          ExpoSpeechRecognitionModule.abort();
+          review('good');
+          return;
+        }
+
+        setSpeechFeedback(t('speechTryAgain'));
+      });
+      const endListener = ExpoSpeechRecognitionModule.addListener('end', () => {
+        setIsListening(false);
+        cleanup();
+      });
+      const errorListener = ExpoSpeechRecognitionModule.addListener('error', (event) => {
+        setIsListening(false);
+        cleanup();
+        if (event.error !== 'aborted') {
+          setSpeechFeedback(event.message || t('speechTryAgain'));
+        }
+      });
+
+      cleanup = () => {
+        resultListener.remove();
+        endListener.remove();
+        errorListener.remove();
+      };
+
+      try {
+        ExpoSpeechRecognitionModule.start({
+          lang: languageCode,
+          interimResults: false,
+          continuous: false,
+          maxAlternatives: 1,
+          iosTaskHint: 'confirmation',
+          androidIntentOptions: {
+            EXTRA_LANGUAGE_MODEL: 'web_search',
+          },
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : t('speechUnavailable');
+        setIsListening(false);
+        setSpeechFeedback(message);
+        Alert.alert(t('speechMode'), message);
+      }
+    } catch (error) {
+      const message = error instanceof Error
+        ? `Native Speech-Erkennung ist nicht geladen: ${error.message}`
+        : t('speechUnavailable');
+      setIsListening(false);
+      setSpeechFeedback(message);
+      Alert.alert(t('speechMode'), message);
+    }
   }
 
   const frontRotateY = flipValue.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] });
@@ -168,7 +322,7 @@ export default function StudyScreen() {
       <View style={styles.content}>
         <View style={styles.header}>
           <View>
-            <Text style={[styles.title, { color: theme.text }]}>Lernen</Text>
+            <Text style={[styles.title, { color: theme.text }]}>{t('study')}</Text>
             <Text style={[styles.subtitle, { color: theme.muted }]}>{deck.title} · {cardIndex + 1}/{cards.length}</Text>
           </View>
           <Pressable style={[styles.deckSwitch, { backgroundColor: theme.elevated }]} onPress={nextDeck}>
@@ -176,33 +330,64 @@ export default function StudyScreen() {
           </Pressable>
         </View>
 
-        <Animated.View {...panResponder.panHandlers} style={[styles.swipeFrame, { transform: [{ translateX: swipeX }, { rotateZ: swipeRotate }] }]}> 
+        <Animated.View {...(!isSpeechMode ? panResponder.panHandlers : {})} style={[styles.swipeFrame, { transform: [{ translateX: swipeX }, { rotateZ: swipeRotate }] }]}> 
           <Animated.View pointerEvents="none" style={[styles.swipeBadge, styles.againBadge, { backgroundColor: theme.warning, opacity: againOpacity }]}> 
-            <Text style={styles.swipeBadgeText}>Wiederholen</Text>
+            <Text style={styles.swipeBadgeText}>{t('repeat')}</Text>
           </Animated.View>
           <Animated.View pointerEvents="none" style={[styles.swipeBadge, styles.goodBadge, { backgroundColor: theme.success, opacity: goodOpacity }]}> 
-            <Text style={styles.swipeBadgeText}>Gewusst</Text>
+            <Text style={styles.swipeBadgeText}>{t('good')}</Text>
           </Animated.View>
-          <Pressable onPress={flipCard} style={styles.cardTouchable}>
+          <Pressable disabled={isSpeechMode} onPress={flipCard} style={styles.cardTouchable}>
             <Animated.View style={[styles.studyCard, { backgroundColor: theme.surface, borderColor: theme.border, transform: [{ perspective: 1200 }, { rotateY: frontRotateY }] }]}> 
-              <Text style={[styles.cardHint, { color: theme.muted }]}>Frage</Text>
+              <View style={styles.cardTopRow}>
+                <Text style={[styles.cardHint, { color: theme.muted }]}>{t('question')}</Text>
+                <Pressable style={[styles.speechButton, { backgroundColor: theme.elevated }]} onPress={() => speak(card.front)}>
+                  <Text style={[styles.speechButtonText, { color: theme.text }]}>{t('listen')}</Text>
+                </Pressable>
+              </View>
               <Text style={[styles.cardText, { color: theme.text }]}>{card.front}</Text>
-              <Text style={[styles.tapHint, { color: theme.muted }]}>Tippen zum Drehen</Text>
+              <Text style={[styles.tapHint, { color: theme.muted }]}>{t('tapToFlip')}</Text>
             </Animated.View>
             <Animated.View style={[styles.studyCard, { backgroundColor: deck.accent, borderColor: deck.accent, transform: [{ perspective: 1200 }, { rotateY: backRotateY }] }]}> 
-              <Text style={[styles.cardHint, styles.lightText]}>Antwort</Text>
+              <View style={styles.cardTopRow}>
+                <Text style={[styles.cardHint, styles.lightText]}>{t('answer')}</Text>
+                <Pressable style={styles.lightSpeechButton} onPress={() => speak(card.back)}>
+                  <Text style={styles.lightSpeechButtonText}>{t('listen')}</Text>
+                </Pressable>
+              </View>
               <Text style={[styles.cardText, styles.lightText]}>{card.back}</Text>
-              <Text style={[styles.tapHint, styles.lightText]}>Tippen zum Drehen</Text>
+              <Text style={[styles.tapHint, styles.lightText]}>{t('tapToFlip')}</Text>
             </Animated.View>
           </Pressable>
         </Animated.View>
 
+        {isSpeechMode ? (
+          <View style={[styles.speechModePanel, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
+            <Text style={[styles.speechModeTitle, { color: theme.text }]}>{t('speechMode')}</Text>
+            <Text style={[styles.speechModeHint, { color: theme.muted }]}>{t('speechHint')}</Text>
+            {!!spokenAnswer && <Text style={[styles.spokenAnswer, { color: theme.text }]}>{spokenAnswer}</Text>}
+            {!!speechFeedback && <Text style={[styles.speechFeedback, { color: theme.muted }]}>{speechFeedback}</Text>}
+            <View style={styles.speechModeActions}>
+              <Pressable style={[styles.speechModeButton, { backgroundColor: theme.secondary }]} onPress={startAnswerSpeechCheck}>
+                <Text style={styles.speechModeButtonText}>{isListening ? t('speechListening') : t('speechStart')}</Text>
+              </Pressable>
+              <Pressable style={[styles.speechModeExitButton, { borderColor: theme.border }]} onPress={leaveSpeechMode}>
+                <Text style={[styles.speechModeExitText, { color: theme.text }]}>{t('speechExit')}</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : (
+          <Pressable style={[styles.speechModeButton, { backgroundColor: theme.secondary }]} onPress={enterSpeechMode}>
+            <Text style={styles.speechModeButtonText}>{t('speechMode')}</Text>
+          </Pressable>
+        )}
+
         <View style={styles.actions}>
           <Pressable style={[styles.actionButton, { backgroundColor: theme.warning }]} onPress={() => review('again')}>
-            <Text style={styles.actionText}>Nochmal</Text>
+            <Text style={styles.actionText}>{t('again')}</Text>
           </Pressable>
           <Pressable style={[styles.actionButton, { backgroundColor: theme.success }]} onPress={() => review('good')}>
-            <Text style={styles.actionText}>Gewusst</Text>
+            <Text style={styles.actionText}>{t('good')}</Text>
           </Pressable>
         </View>
       </View>
@@ -287,6 +472,32 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0,
   },
+  cardTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  speechButton: {
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  speechButtonText: {
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  lightSpeechButton: {
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+  },
+  lightSpeechButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
+  },
   cardText: {
     fontSize: 30,
     lineHeight: 38,
@@ -298,6 +509,56 @@ const styles = StyleSheet.create({
   },
   lightText: {
     color: '#FFFFFF',
+  },
+  speechModePanel: {
+    borderWidth: 1,
+    borderRadius: 24,
+    padding: 16,
+    gap: 10,
+  },
+  speechModeTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  speechModeHint: {
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: '700',
+  },
+  spokenAnswer: {
+    fontSize: 16,
+    lineHeight: 22,
+    fontWeight: '900',
+  },
+  speechFeedback: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '800',
+  },
+  speechModeActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  speechModeButton: {
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  speechModeButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '900',
+  },
+  speechModeExitButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  speechModeExitText: {
+    fontWeight: '900',
   },
   actions: {
     flexDirection: 'row',

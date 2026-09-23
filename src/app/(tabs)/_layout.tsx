@@ -3,6 +3,7 @@ import { Tabs } from 'expo-router';
 import { ComponentProps } from 'react';
 import { useColorScheme } from 'react-native';
 
+import { useLanguage } from '../../state/LanguageContext';
 import { createTheme } from '../../theme/palette';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
@@ -16,6 +17,7 @@ const tabIcons: Record<string, IconName> = {
 
 export default function TabsLayout() {
   const theme = createTheme(useColorScheme());
+  const { t } = useLanguage();
 
   return (
     <Tabs
@@ -37,10 +39,10 @@ export default function TabsLayout() {
         tabBarIcon: ({ color, size }) => <Ionicons name={tabIcons[route.name] ?? 'ellipse'} color={color} size={size} />,
       })}
     >
-      <Tabs.Screen name="index" options={{ title: 'Start' }} />
-      <Tabs.Screen name="decks" options={{ title: 'Decks' }} />
-      <Tabs.Screen name="study" options={{ title: 'Lernen' }} />
-      <Tabs.Screen name="settings" options={{ title: 'Mehr' }} />
+      <Tabs.Screen name="index" options={{ title: t('home') }} />
+      <Tabs.Screen name="decks" options={{ title: t('decks') }} />
+      <Tabs.Screen name="study" options={{ title: t('study') }} />
+      <Tabs.Screen name="settings" options={{ title: t('settings') }} />
     </Tabs>
   );
 }
