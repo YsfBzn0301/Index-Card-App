@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
+import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DeckCard } from '../../components/DeckCard';
@@ -9,7 +9,7 @@ import { createTheme } from '../../theme/palette';
 
 export default function DecksScreen() {
   const theme = createTheme(useColorScheme());
-  const { decks, createDeck, addCard } = useLibrary();
+  const { decks, createDeck, addCard, deleteCard } = useLibrary();
   const [isDeckModalOpen, setIsDeckModalOpen] = useState(false);
   const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
   const [title, setTitle] = useState('');
@@ -40,8 +40,18 @@ export default function DecksScreen() {
     addCard(selectedDeck.id, front, back);
     setFront('');
     setBack('');
-    setSelectedDeckId(null);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
+  }
+
+  function confirmDeleteCard(cardId: string) {
+    if (!selectedDeck) {
+      return;
+    }
+
+    Alert.alert('Karte loeschen?', 'Diese Karte wird aus dem Deck entfernt.', [
+      { text: 'Abbrechen', style: 'cancel' },
+      { text: 'Loeschen', style: 'destructive', onPress: () => deleteCard(selectedDeck.id, cardId) },
+    ]);
   }
 
   return (
@@ -117,9 +127,24 @@ export default function DecksScreen() {
             <Text style={[styles.modalTitle, { color: theme.text }]}>Karte fuer {selectedDeck?.title}</Text>
             <TextInput value={front} onChangeText={setFront} placeholder="Vorderseite / Frage" placeholderTextColor={theme.muted} multiline style={[styles.input, styles.textArea, { color: theme.text, borderColor: theme.border }]} />
             <TextInput value={back} onChangeText={setBack} placeholder="Rueckseite / Antwort" placeholderTextColor={theme.muted} multiline style={[styles.input, styles.textArea, { color: theme.text, borderColor: theme.border }]} />
+            <ScrollView style={styles.cardList} contentContainerStyle={styles.cardListContent} showsVerticalScrollIndicator={false}>
+              {selectedDeck?.cards.map((card) => (
+                <View key={card.id} style={[styles.cardRow, { borderColor: theme.border, backgroundColor: theme.elevated }]}> 
+                  <View style={styles.cardRowText}>
+                    <Text style={[styles.cardRowLabel, { color: theme.muted }]}>Vorderseite</Text>
+                    <Text style={[styles.cardRowValue, { color: theme.text }]}>{card.front}</Text>
+                    <Text style={[styles.cardRowLabel, { color: theme.muted }]}>Rueckseite</Text>
+                    <Text style={[styles.cardRowValue, { color: theme.text }]}>{card.back}</Text>
+                  </View>
+                  <Pressable style={[styles.deleteButton, { backgroundColor: theme.primary }]} onPress={() => confirmDeleteCard(card.id)}>
+                    <Text style={styles.deleteButtonText}>Loeschen</Text>
+                  </Pressable>
+                </View>
+              ))}
+            </ScrollView>
             <View style={styles.modalActions}>
               <Pressable style={[styles.secondaryButton, { borderColor: theme.border }]} onPress={() => setSelectedDeckId(null)}>
-                <Text style={[styles.secondaryText, { color: theme.text }]}>Abbrechen</Text>
+                <Text style={[styles.secondaryText, { color: theme.text }]}>Fertig</Text>
               </Pressable>
               <Pressable style={[styles.primaryButton, { backgroundColor: theme.secondary }]} onPress={saveCard}>
                 <Text style={styles.primaryText}>Hinzufuegen</Text>
@@ -221,6 +246,42 @@ const styles = StyleSheet.create({
   textArea: {
     minHeight: 96,
     textAlignVertical: 'top',
+  },
+  cardList: {
+    maxHeight: 220,
+  },
+  cardListContent: {
+    gap: 10,
+  },
+  cardRow: {
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 12,
+    gap: 12,
+  },
+  cardRowText: {
+    gap: 4,
+  },
+  cardRowLabel: {
+    fontSize: 11,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 0,
+  },
+  cardRowValue: {
+    fontSize: 15,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+  deleteButton: {
+    alignSelf: 'flex-start',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  deleteButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '900',
   },
   modalActions: {
     flexDirection: 'row',

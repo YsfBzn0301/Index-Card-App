@@ -16,6 +16,7 @@ type LibraryContextValue = {
   dueDecks: Deck[];
   createDeck: (title: string, category: string, folder: string, lesson: string) => void;
   addCard: (deckId: string, front: string, back: string) => void;
+  deleteCard: (deckId: string, cardId: string) => void;
   reviewCard: (deckId: string, cardId: string, grade: ReviewGrade) => void;
   resetLibrary: () => void;
 };
@@ -122,6 +123,20 @@ export function LibraryProvider({ children }: PropsWithChildren) {
                     { id: createId('card'), front: front.trim(), back: back.trim(), mastery: 0 },
                     ...deck.cards,
                   ],
+                }
+              : deck,
+          ),
+        );
+      },
+      deleteCard: (deckId, cardId) => {
+        const now = new Date().toISOString();
+        setDecks((currentDecks) =>
+          currentDecks.map((deck) =>
+            deck.id === deckId
+              ? {
+                  ...deck,
+                  updatedAt: now,
+                  cards: deck.cards.filter((card) => card.id !== cardId),
                 }
               : deck,
           ),
