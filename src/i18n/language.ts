@@ -59,6 +59,12 @@ type TranslationKey =
   | 'question'
   | 'recordBack'
   | 'recordFront'
+  | 'reminder'
+  | 'reminderAtPlaceholder'
+  | 'reminderLeadPlaceholder'
+  | 'reminderMessagePlaceholder'
+  | 'reminderSave'
+  | 'reminderSpeak'
   | 'repeat'
   | 'resetSamples'
   | 'resetSamplesBody'
@@ -125,6 +131,12 @@ const translations: Record<SupportedLanguageCode, TranslationMap> = {
     question: 'Frage',
     recordBack: 'Rückseite diktieren',
     recordFront: 'Vorderseite diktieren',
+    reminder: 'Erinnerung',
+    reminderAtPlaceholder: 'Datum/Uhrzeit, z. B. 2026-09-23 18:30',
+    reminderLeadPlaceholder: 'Vorab-Minuten, z. B. 30',
+    reminderMessagePlaceholder: 'Eigene Benachrichtigung',
+    reminderSave: 'Erinnerung speichern',
+    reminderSpeak: 'Beim Öffnen vorlesen',
     repeat: 'Wiederholen',
     resetSamples: 'Beispieldaten wiederherstellen',
     resetSamplesBody: 'Deine aktuellen lokalen Decks werden ersetzt.',
@@ -188,6 +200,12 @@ const translations: Record<SupportedLanguageCode, TranslationMap> = {
     question: 'Question',
     recordBack: 'Dictate back',
     recordFront: 'Dictate front',
+    reminder: 'Reminder',
+    reminderAtPlaceholder: 'Date/time, e.g. 2026-09-23 18:30',
+    reminderLeadPlaceholder: 'Lead minutes, e.g. 30',
+    reminderMessagePlaceholder: 'Custom notification message',
+    reminderSave: 'Save reminder',
+    reminderSpeak: 'Read aloud when opened',
     repeat: 'Repeat',
     resetSamples: 'Restore sample data',
     resetSamplesBody: 'Your current local decks will be replaced.',
@@ -251,6 +269,12 @@ const translations: Record<SupportedLanguageCode, TranslationMap> = {
     question: 'Soru',
     recordBack: 'Arka yuzu dikte et',
     recordFront: 'On yuzu dikte et',
+    reminder: 'Hatirlatici',
+    reminderAtPlaceholder: 'Tarih/saat, orn. 2026-09-23 18:30',
+    reminderLeadPlaceholder: 'Once dakika, orn. 30',
+    reminderMessagePlaceholder: 'Ozel bildirim mesaji',
+    reminderSave: 'Hatirlaticiyi kaydet',
+    reminderSpeak: 'Acilinca sesli oku',
     repeat: 'Tekrarla',
     resetSamples: 'Ornek verileri geri yukle',
     resetSamplesBody: 'Mevcut yerel destelerin degistirilecek.',
@@ -314,6 +338,12 @@ const translations: Record<SupportedLanguageCode, TranslationMap> = {
     question: 'Pitanje',
     recordBack: 'Diktiraj zadnju stranu',
     recordFront: 'Diktiraj prednju stranu',
+    reminder: 'Podsetnik',
+    reminderAtPlaceholder: 'Datum/vreme, npr. 2026-09-23 18:30',
+    reminderLeadPlaceholder: 'Minuta ranije, npr. 30',
+    reminderMessagePlaceholder: 'Tvoja poruka obavestenja',
+    reminderSave: 'Sacuvaj podsetnik',
+    reminderSpeak: 'Procitaj pri otvaranju',
     repeat: 'Ponovi',
     resetSamples: 'Vrati primere',
     resetSamplesBody: 'Tvoji trenutni lokalni špilovi će biti zamenjeni.',
@@ -377,6 +407,12 @@ const translations: Record<SupportedLanguageCode, TranslationMap> = {
     question: 'Pitanje',
     recordBack: 'Diktiraj straznju stranu',
     recordFront: 'Diktiraj prednju stranu',
+    reminder: 'Podsjetnik',
+    reminderAtPlaceholder: 'Datum/vrijeme, npr. 2026-09-23 18:30',
+    reminderLeadPlaceholder: 'Minuta ranije, npr. 30',
+    reminderMessagePlaceholder: 'Tvoja poruka obavijesti',
+    reminderSave: 'Spremi podsjetnik',
+    reminderSpeak: 'Procitaj pri otvaranju',
     repeat: 'Ponovi',
     resetSamples: 'Vrati primjere',
     resetSamplesBody: 'Tvoji trenutni lokalni špilovi bit će zamijenjeni.',
@@ -440,6 +476,12 @@ const translations: Record<SupportedLanguageCode, TranslationMap> = {
     question: 'Pregunta',
     recordBack: 'Dictar reverso',
     recordFront: 'Dictar anverso',
+    reminder: 'Recordatorio',
+    reminderAtPlaceholder: 'Fecha/hora, p. ej. 2026-09-23 18:30',
+    reminderLeadPlaceholder: 'Minutos antes, p. ej. 30',
+    reminderMessagePlaceholder: 'Mensaje personalizado',
+    reminderSave: 'Guardar recordatorio',
+    reminderSpeak: 'Leer al abrir',
     repeat: 'Repetir',
     resetSamples: 'Restaurar datos de ejemplo',
     resetSamplesBody: 'Tus mazos locales actuales serán reemplazados.',
@@ -503,6 +545,12 @@ const translations: Record<SupportedLanguageCode, TranslationMap> = {
     question: 'Domanda',
     recordBack: 'Detta retro',
     recordFront: 'Detta fronte',
+    reminder: 'Promemoria',
+    reminderAtPlaceholder: 'Data/ora, es. 2026-09-23 18:30',
+    reminderLeadPlaceholder: 'Minuti prima, es. 30',
+    reminderMessagePlaceholder: 'Messaggio personalizzato',
+    reminderSave: 'Salva promemoria',
+    reminderSpeak: 'Leggi all’apertura',
     repeat: 'Ripeti',
     resetSamples: 'Ripristina dati esempio',
     resetSamplesBody: 'I tuoi mazzi locali attuali saranno sostituiti.',

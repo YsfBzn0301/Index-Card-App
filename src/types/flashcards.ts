@@ -17,9 +17,20 @@ export type Deck = {
   lesson: string;
   accent: string;
   emoji: string;
+  reminderAt?: string;
+  reminderLeadMinutes?: number;
+  reminderMessage?: string;
+  reminderSpeak?: boolean;
   cards: Flashcard[];
   createdAt: string;
   updatedAt: string;
+};
+
+export type ReminderSettings = {
+  reminderAt?: string;
+  reminderLeadMinutes?: number;
+  reminderMessage?: string;
+  reminderSpeak?: boolean;
 };
 
 export type ReviewGrade = 'again' | 'good';

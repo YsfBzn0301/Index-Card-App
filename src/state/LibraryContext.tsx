@@ -3,7 +3,7 @@ import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useSt
 
 import { starterDecks } from '../data/starterDecks';
 import { deckAccents } from '../theme/palette';
-import { Deck, Flashcard, ReviewGrade } from '../types/flashcards';
+import { Deck, Flashcard, ReminderSettings, ReviewGrade } from '../types/flashcards';
 
 const storageKey = 'index-card.library.v1';
 
@@ -24,6 +24,7 @@ type LibraryContextValue = {
   reviewCard: (deckId: string, cardId: string, grade: ReviewGrade) => void;
   resetDeckProgress: (deckId: string) => void;
   resetLibrary: () => void;
+  updateDeckReminder: (deckId: string, reminderSettings: ReminderSettings) => void;
 };
 
 const LibraryContext = createContext<LibraryContextValue | undefined>(undefined);
@@ -198,6 +199,20 @@ export function LibraryProvider({ children }: PropsWithChildren) {
         );
       },
       resetLibrary: () => setDecks(starterDecks),
+      updateDeckReminder: (deckId, reminderSettings) => {
+        const now = new Date().toISOString();
+        setDecks((currentDecks) =>
+          currentDecks.map((deck) =>
+            deck.id === deckId
+              ? {
+                  ...deck,
+                  ...reminderSettings,
+                  updatedAt: now,
+                }
+              : deck,
+          ),
+        );
+      },
     };
   }, [decks, isReady]);
 

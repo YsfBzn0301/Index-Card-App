@@ -17,7 +17,7 @@
     },
     "android": {
       "package": "com.local.indexcard",
-      "versionCode": 4,
+      "versionCode": 5,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -35,6 +35,13 @@
     "plugins": [
       "expo-router",
       [
+        "expo-notifications",
+        {
+          "color": "#24B8A8",
+          "defaultChannel": "study-reminders"
+        }
+      ],
+      [
         "expo-speech-recognition",
         {
           "microphonePermission": "Allow Index Card to use the microphone for dictation.",
@@ -45,7 +52,8 @@
             "com.google.android.as"
           ]
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "extra": {
       "router": {},
