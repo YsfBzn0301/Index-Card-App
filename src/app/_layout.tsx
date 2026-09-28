@@ -1,14 +1,14 @@
 import * as Notifications from 'expo-notifications';
-import * as Speech from 'expo-speech';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { Platform, useColorScheme } from 'react-native';
+import { Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { ReminderSpeechListener } from '../components/ReminderSpeechListener';
 import { LanguageProvider } from '../state/LanguageContext';
 import { LibraryProvider } from '../state/LibraryContext';
-import { createTheme } from '../theme/palette';
+import { ThemeProvider, useAppTheme } from '../state/ThemeContext';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -19,10 +19,18 @@ Notifications.setNotificationHandler({
   }),
 });
 
-export default function RootLayout() {
-  const colorScheme = useColorScheme();
-  const theme = createTheme(colorScheme);
+function RootNavigator() {
+  const { theme, colorScheme } = useAppTheme();
 
+  return (
+    <>
+      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.background } }} />
+    </>
+  );
+}
+
+export default function RootLayout() {
   useEffect(() => {
     if (Platform.OS === 'android') {
       Notifications.setNotificationChannelAsync('study-reminders', {
@@ -32,35 +40,18 @@ export default function RootLayout() {
         lightColor: '#24B8A8',
       }).catch(() => undefined);
     }
-
-    const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
-      const data = response.notification.request.content.data;
-      const reminderSpeak = data?.reminderSpeak === true;
-      const reminderMessage = typeof data?.reminderMessage === 'string' ? data.reminderMessage : undefined;
-      const reminderLanguage = typeof data?.languageCode === 'string' ? data.languageCode : undefined;
-
-      if (reminderSpeak && reminderMessage) {
-        Speech.stop().finally(() => {
-          Speech.speak(reminderMessage, {
-            language: reminderLanguage,
-            rate: 0.9,
-            pitch: 1,
-          });
-        });
-      }
-    });
-
-    return () => subscription.remove();
   }, []);
 
   return (
     <SafeAreaProvider>
-      <LanguageProvider>
-        <LibraryProvider>
-          <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.background } }} />
-        </LibraryProvider>
-      </LanguageProvider>
+      <ThemeProvider>
+        <LanguageProvider>
+          <LibraryProvider>
+            <ReminderSpeechListener />
+            <RootNavigator />
+          </LibraryProvider>
+        </LanguageProvider>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }

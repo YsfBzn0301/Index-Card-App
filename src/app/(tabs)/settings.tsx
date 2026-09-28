@@ -1,18 +1,20 @@
 import Constants from 'expo-constants';
 import * as Linking from 'expo-linking';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Alert, Dimensions, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ThemeToggle } from '../../components/ThemeToggle';
 import { supportedLanguages } from '../../i18n/language';
 import { useLanguage } from '../../state/LanguageContext';
 import { useLibrary } from '../../state/LibraryContext';
-import { createTheme } from '../../theme/palette';
+import { useAppTheme } from '../../state/ThemeContext';
+import { displayFont } from '../../theme/palette';
 
 const developmentBuildApkUrl = 'https://expo.dev/artifacts/eas/gCpUVE3Sp-dhWQEZNYl_liXJmLQY6w_nKCsL3zhN9zo.apk';
 
 export default function SettingsScreen() {
-  const colorScheme = useColorScheme();
-  const theme = createTheme(colorScheme);
+  const { theme, colorScheme } = useAppTheme();
+  const insets = useSafeAreaInsets(); // TEMP: debug readout for the Android navigation bar issue, remove afterwards
   const { resetLibrary, totalCards, masteredCards } = useLibrary();
   const { languageCode, languageLabel, setLanguageCode, t } = useLanguage();
   const isDevelopmentBuildActive = Constants.appOwnership !== 'expo';
@@ -25,9 +27,12 @@ export default function SettingsScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={[styles.safeArea, { backgroundColor: theme.background }]}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={[styles.title, { color: theme.text }]}>{t('settings')}</Text>
+        <View style={styles.titleRow}>
+          <Text style={[styles.title, { color: theme.text }]}>{t('settings')}</Text>
+          <ThemeToggle />
+        </View>
         <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
           <Text style={[styles.panelTitle, { color: theme.text }]}>{t('language')}</Text>
           <Text style={[styles.copy, { color: theme.muted }]}>{t('activeLanguage')}: {languageLabel}</Text>
@@ -64,6 +69,7 @@ export default function SettingsScreen() {
           <Text style={[styles.panelTitle, { color: theme.text }]}>{t('status')}</Text>
           <Text style={[styles.copy, { color: theme.muted }]}>{t('themeMode')}: {colorScheme === 'dark' ? 'Dark Mode' : 'Light Mode'}</Text>
           <Text style={[styles.copy, { color: theme.muted }]}>{t('cards')}: {masteredCards}/{totalCards} {t('mastered')}</Text>
+          <Text style={[styles.copy, { color: theme.muted }]}>DEBUG unten={Math.round(insets.bottom)} oben={Math.round(insets.top)} Fenster={Math.round(Dimensions.get('window').height)} Bildschirm={Math.round(Dimensions.get('screen').height)}</Text>
         </View>
         <Pressable style={[styles.resetButton, { backgroundColor: theme.primary }]} onPress={confirmReset}>
           <Text style={styles.resetText}>{t('resetSamples')}</Text>
@@ -79,12 +85,19 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
-    paddingBottom: 110,
+    paddingBottom: 32,
     gap: 16,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   title: {
+    fontFamily: displayFont,
     fontSize: 34,
-    fontWeight: '900',
+    fontWeight: '700',
+    letterSpacing: -0.5,
   },
   panel: {
     borderWidth: 1,

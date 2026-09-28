@@ -1,42 +1,56 @@
-import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { Tabs } from 'expo-router';
-import { ComponentProps } from 'react';
-import { useColorScheme } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AnimatedTabIcon, TabMotion } from '../../components/AnimatedTabIcon';
 import { useLanguage } from '../../state/LanguageContext';
-import { createTheme } from '../../theme/palette';
+import { useAppTheme } from '../../state/ThemeContext';
 
-type IconName = ComponentProps<typeof Ionicons>['name'];
-
-const tabIcons: Record<string, IconName> = {
-  index: 'sparkles',
-  decks: 'albums',
-  study: 'school',
-  settings: 'settings',
-};
+const tabIcons = {
+  index: { filled: 'sparkles', outline: 'sparkles-outline', motion: 'wiggle' },
+  decks: { filled: 'albums', outline: 'albums-outline', motion: 'tilt' },
+  study: { filled: 'school', outline: 'school-outline', motion: 'bounce' },
+  settings: { filled: 'settings', outline: 'settings-outline', motion: 'spin' },
+} as const satisfies Record<string, { filled: string; outline: string; motion: TabMotion }>;
 
 export default function TabsLayout() {
-  const theme = createTheme(useColorScheme());
+  const { theme } = useAppTheme();
   const { t } = useLanguage();
+  const { bottom } = useSafeAreaInsets();
+  const bottomPadding = Math.max(bottom, 12);
+  const tabColors = {
+    index: theme.tabHome,
+    decks: theme.tabDecks,
+    study: theme.tabStudy,
+    settings: theme.tabSettings,
+  };
 
   return (
     <Tabs
+      screenListeners={{ tabPress: () => Haptics.selectionAsync().catch(() => undefined) }}
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor: theme.primary,
+        tabBarActiveTintColor: tabColors[route.name as keyof typeof tabColors] ?? theme.primary,
         tabBarInactiveTintColor: theme.muted,
         tabBarStyle: {
           backgroundColor: theme.tab,
           borderTopColor: theme.border,
-          height: 72,
-          paddingBottom: 12,
+          height: 64 + bottomPadding,
+          paddingBottom: bottomPadding,
           paddingTop: 8,
         },
+        tabBarLabelPosition: 'below-icon',
         tabBarLabelStyle: {
           fontSize: 12,
           fontWeight: '800',
         },
-        tabBarIcon: ({ color, size }) => <Ionicons name={tabIcons[route.name] ?? 'ellipse'} color={color} size={size} />,
+        tabBarIcon: ({ color, focused }) => {
+          const icon = tabIcons[route.name as keyof typeof tabIcons];
+
+          return icon ? (
+            <AnimatedTabIcon filledName={icon.filled} outlineName={icon.outline} motion={icon.motion} focused={focused} color={color} />
+          ) : null;
+        },
       })}
     >
       <Tabs.Screen name="index" options={{ title: t('home') }} />
