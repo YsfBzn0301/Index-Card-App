@@ -1,34 +1,67 @@
 import { Ionicons } from '@expo/vector-icons';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { AppTheme } from '../theme/palette';
+import { useLanguage } from '../state/LanguageContext';
+import { AppTheme, displayFont } from '../theme/palette';
 import { Deck } from '../types/flashcards';
+import { priorityColor, priorityLabelKeys } from '../utils/priority';
 
 type DeckCardProps = {
   deck: Deck;
   theme: AppTheme;
+  // When given, the priority flag becomes a button so the level can be changed without opening the deck.
+  onPriorityPress?: () => void;
 };
 
-export function DeckCard({ deck, theme }: DeckCardProps) {
+export function DeckCard({ deck, theme, onPriorityPress }: DeckCardProps) {
+  const { t } = useLanguage();
   const completedCards = deck.cards.filter((card) => card.mastery >= 3).length;
   const progress = deck.cards.length === 0 ? 0 : Math.round((completedCards / deck.cards.length) * 100);
   const path = `${deck.category} / ${deck.folder} / ${deck.lesson}`;
+  const priorityText = `${t('priority')}: ${t(priorityLabelKeys[deck.priority])}`;
+  const flagColor = priorityColor(theme, deck.priority);
+  const flag = <Ionicons name={deck.priority === 'low' ? 'flag-outline' : 'flag'} size={22} color={flagColor} />;
 
   return (
-    <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
-      <View style={[styles.badge, { backgroundColor: deck.accent }]}> 
-        <Text style={styles.badgeText}>{deck.emoji}</Text>
+    <View
+      accessible={!onPriorityPress}
+      accessibilityLabel={`${deck.title}, ${path}, ${completedCards}/${deck.cards.length}, ${priorityText}`}
+      style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}
+    >
+      <View style={[styles.badge, { backgroundColor: deck.accent }]}>
+        <Text style={styles.badgeText} numberOfLines={1} adjustsFontSizeToFit>
+          {deck.emoji}
+        </Text>
       </View>
       <View style={styles.content}>
-        <Text style={[styles.title, { color: theme.text }]}>{deck.title}</Text>
-        <Text style={[styles.subject, { color: theme.muted }]}>{path}</Text>
-        <View style={[styles.track, { backgroundColor: theme.elevated }]}> 
+        <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>
+          {deck.title}
+        </Text>
+        <Text style={[styles.subject, { color: theme.muted }]} numberOfLines={1}>
+          {path}
+        </Text>
+        <View style={[styles.track, { backgroundColor: theme.elevated }]}>
           <View style={[styles.fill, { width: `${progress}%`, backgroundColor: deck.accent }]} />
         </View>
       </View>
       <View style={styles.meta}>
-        <Ionicons name="layers" size={18} color={theme.muted} />
-        <Text style={[styles.count, { color: theme.muted }]}>{deck.cards.length}</Text>
+        {onPriorityPress ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={priorityText}
+            hitSlop={12}
+            onPress={onPriorityPress}
+            style={({ pressed }) => [styles.flag, pressed && styles.flagPressed]}
+          >
+            {flag}
+          </Pressable>
+        ) : (
+          <View style={styles.flag}>{flag}</View>
+        )}
+        <Ionicons name="layers-outline" size={18} color={theme.muted} />
+        <Text style={[styles.count, { color: theme.muted }]}>
+          {completedCards}/{deck.cards.length}
+        </Text>
       </View>
     </View>
   );
@@ -36,8 +69,8 @@ export function DeckCard({ deck, theme }: DeckCardProps) {
 
 const styles = StyleSheet.create({
   card: {
-    borderWidth: 1,
-    borderRadius: 24,
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    borderRadius: 22,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
@@ -46,32 +79,35 @@ const styles = StyleSheet.create({
   badge: {
     width: 54,
     height: 54,
-    borderRadius: 18,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 4,
   },
   badgeText: {
     color: '#FFFFFF',
-    fontWeight: '900',
+    fontWeight: '800',
     fontSize: 14,
   },
   content: {
     flex: 1,
-    gap: 5,
+    gap: 4,
   },
   title: {
-    fontSize: 18,
-    fontWeight: '900',
+    fontFamily: displayFont,
+    fontSize: 19,
+    fontWeight: '700',
+    letterSpacing: -0.2,
   },
   subject: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   track: {
-    height: 7,
+    height: 6,
     borderRadius: 999,
     overflow: 'hidden',
-    marginTop: 5,
+    marginTop: 6,
   },
   fill: {
     height: '100%',
@@ -80,8 +116,21 @@ const styles = StyleSheet.create({
   meta: {
     alignItems: 'center',
     gap: 4,
+    minWidth: 40,
+  },
+  flag: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  flagPressed: {
+    opacity: 0.6,
+    transform: [{ scale: 0.92 }],
   },
   count: {
-    fontWeight: '800',
+    fontWeight: '700',
+    fontSize: 13,
+    fontVariant: ['tabular-nums'],
   },
 });

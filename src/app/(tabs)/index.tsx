@@ -1,23 +1,34 @@
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { router } from 'expo-router';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DeckCard } from '../../components/DeckCard';
+import { ThemeToggle } from '../../components/ThemeToggle';
 import { useLanguage } from '../../state/LanguageContext';
 import { useLibrary } from '../../state/LibraryContext';
-import { createTheme } from '../../theme/palette';
+import { useAppTheme } from '../../state/ThemeContext';
+import { displayFont } from '../../theme/palette';
 
 export default function HomeScreen() {
-  const theme = createTheme(useColorScheme());
-  const { decks, masteredCards, totalCards, dueCards } = useLibrary();
+  const { theme } = useAppTheme();
+  const { decks, prioritizedDecks, masteredCards, totalCards, dueCards } = useLibrary();
   const { t } = useLanguage();
   const progress = totalCards === 0 ? 0 : Math.round((masteredCards / totalCards) * 100);
 
+  function startStudying(deckId?: string) {
+    router.navigate({ pathname: '/study', params: deckId ? { deckId, at: String(Date.now()) } : {} });
+  }
+
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={[styles.safeArea, { backgroundColor: theme.background }]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <LinearGradient colors={[theme.gradientStart, theme.gradientEnd]} style={styles.hero}>
-          <Text style={styles.kicker}>Index Card</Text>
+          <View style={styles.heroTop}>
+            <Text style={styles.kicker}>Index Card</Text>
+            <ThemeToggle onColor />
+          </View>
           <Text style={styles.heroTitle}>{t('heroTitle')}</Text>
           <View style={styles.heroStats}>
             <View>
@@ -30,6 +41,17 @@ export default function HomeScreen() {
               <Text style={styles.statLabel}>{t('mastered')}</Text>
             </View>
           </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('startStudying')}
+            onPress={() => startStudying()}
+            style={({ pressed }) => [styles.cta, pressed && styles.pressed]}
+          >
+            <Text style={styles.ctaText}>{t('startStudying')}</Text>
+            <View style={styles.ctaIcon}>
+              <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+            </View>
+          </Pressable>
         </LinearGradient>
 
         <View style={styles.sectionHeader}>
@@ -37,11 +59,25 @@ export default function HomeScreen() {
           <Text style={[styles.sectionHint, { color: theme.muted }]}>{decks.length} {t('active')}</Text>
         </View>
 
-        <View style={styles.deckList}>
-          {decks.slice(0, 4).map((deck) => (
-            <DeckCard key={deck.id} deck={deck} theme={theme} />
-          ))}
-        </View>
+        {decks.length === 0 ? (
+          <View style={[styles.empty, { borderColor: theme.border }]}>
+            <Text style={[styles.emptyTitle, { color: theme.text }]}>{t('emptyStudyTitle')}</Text>
+            <Text style={[styles.emptyBody, { color: theme.muted }]}>{t('emptyStudyBody')}</Text>
+          </View>
+        ) : (
+          <View style={styles.deckList}>
+            {prioritizedDecks.slice(0, 4).map((deck) => (
+              <Pressable
+                key={deck.id}
+                accessibilityRole="button"
+                onPress={() => startStudying(deck.id)}
+                style={({ pressed }) => pressed && styles.pressed}
+              >
+                <DeckCard deck={deck} theme={theme} />
+              </Pressable>
+            ))}
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -53,32 +89,42 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
-    paddingBottom: 110,
+    paddingBottom: 32,
     gap: 22,
   },
   hero: {
-    minHeight: 250,
+    minHeight: 300,
     borderRadius: 32,
     padding: 24,
+    gap: 18,
+    justifyContent: 'space-between',
+  },
+  heroTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
   },
   kicker: {
     color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '900',
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 1.6,
+    textTransform: 'uppercase',
     opacity: 0.9,
   },
   heroTitle: {
     color: '#FFFFFF',
+    fontFamily: displayFont,
     fontSize: 34,
-    lineHeight: 39,
-    fontWeight: '900',
+    lineHeight: 40,
+    fontWeight: '700',
+    letterSpacing: -0.6,
     maxWidth: 310,
   },
   heroStats: {
     flexDirection: 'row',
     backgroundColor: 'rgba(255,255,255,0.22)',
-    borderRadius: 22,
+    borderRadius: 20,
     padding: 16,
     gap: 18,
     alignItems: 'center',
@@ -86,12 +132,13 @@ const styles = StyleSheet.create({
   statNumber: {
     color: '#FFFFFF',
     fontSize: 25,
-    fontWeight: '900',
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
   },
   statLabel: {
     color: '#FFFFFF',
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '700',
     opacity: 0.88,
   },
   statDivider: {
@@ -99,19 +146,67 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     backgroundColor: 'rgba(255,255,255,0.34)',
   },
+  cta: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    minHeight: 48,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 999,
+    paddingVertical: 6,
+    paddingLeft: 20,
+    paddingRight: 6,
+  },
+  ctaText: {
+    color: '#1E1B18',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  ctaIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1E1B18',
+  },
+  pressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.98 }],
+  },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'baseline',
   },
   sectionTitle: {
-    fontSize: 24,
-    fontWeight: '900',
+    fontFamily: displayFont,
+    fontSize: 26,
+    fontWeight: '700',
+    letterSpacing: -0.3,
   },
   sectionHint: {
-    fontWeight: '800',
+    fontWeight: '700',
   },
   deckList: {
     gap: 12,
+  },
+  empty: {
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderRadius: 22,
+    padding: 22,
+    gap: 6,
+  },
+  emptyTitle: {
+    fontFamily: displayFont,
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  emptyBody: {
+    fontSize: 14,
+    lineHeight: 21,
+    fontWeight: '600',
   },
 });

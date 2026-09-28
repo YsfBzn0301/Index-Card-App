@@ -1,4 +1,4 @@
-import { ColorSchemeName } from 'react-native';
+import { ColorSchemeName, Platform } from 'react-native';
 
 export type AppTheme = ReturnType<typeof createTheme>;
 
@@ -16,6 +16,10 @@ const light = {
   success: '#4CBE6C',
   gradientStart: '#FF7A59',
   gradientEnd: '#23C6B7',
+  tabHome: '#E8375C',
+  tabDecks: '#6A4DF0',
+  tabStudy: '#0F9D8C',
+  tabSettings: '#C97A00',
 };
 
 const dark = {
@@ -32,7 +36,14 @@ const dark = {
   success: '#6DDA89',
   gradientStart: '#E95F3C',
   gradientEnd: '#18A998',
+  tabHome: '#FF7890',
+  tabDecks: '#9D8AFF',
+  tabStudy: '#41D4C4',
+  tabSettings: '#FFC05C',
 };
+
+// Serif display face for titles and card text; system fonts avoid a new dependency.
+export const displayFont = Platform.select({ ios: 'Georgia', default: 'serif' });
 
 export const deckAccents = ['#FF5A7A', '#24B8A8', '#7B61FF', '#F6A935', '#4CBE6C', '#35A7FF'];
 

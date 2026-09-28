@@ -3,12 +3,14 @@ import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useSt
 
 import { starterDecks } from '../data/starterDecks';
 import { deckAccents } from '../theme/palette';
-import { Deck, Flashcard, ReminderSettings, ReviewGrade } from '../types/flashcards';
+import { Deck, DeckPriority, Flashcard, ReminderSettings, ReviewGrade } from '../types/flashcards';
+import { sortByPriority } from '../utils/priority';
 
 const storageKey = 'index-card.library.v1';
 
 type LibraryContextValue = {
   decks: Deck[];
+  prioritizedDecks: Deck[];
   isReady: boolean;
   totalCards: number;
   masteredCards: number;
@@ -23,6 +25,7 @@ type LibraryContextValue = {
   deleteLesson: (category: string, folder: string, lesson: string) => void;
   reviewCard: (deckId: string, cardId: string, grade: ReviewGrade) => void;
   resetDeckProgress: (deckId: string) => void;
+  setDeckPriority: (deckId: string, priority: DeckPriority) => void;
   resetLibrary: () => void;
   updateDeckReminder: (deckId: string, reminderSettings: ReminderSettings) => void;
 };
@@ -46,6 +49,8 @@ function normalizeDeck(deck: Deck): Deck {
     category: deck.category || subject,
     folder: deck.folder || 'Allgemein',
     lesson: deck.lesson || 'Lektion 1',
+    // Decks saved before priorities existed default to medium.
+    priority: deck.priority ?? 'medium',
   };
 }
 
@@ -92,6 +97,7 @@ export function LibraryProvider({ children }: PropsWithChildren) {
 
     return {
       decks,
+      prioritizedDecks: sortByPriority(decks),
       isReady,
       totalCards,
       masteredCards,
@@ -110,6 +116,7 @@ export function LibraryProvider({ children }: PropsWithChildren) {
             lesson: lesson.trim() || 'Lektion 1',
             accent: deckAccents[currentDecks.length % deckAccents.length],
             emoji: 'NEW',
+            priority: 'medium',
             cards: [],
             createdAt: now,
             updatedAt: now,
@@ -196,6 +203,11 @@ export function LibraryProvider({ children }: PropsWithChildren) {
                 }
               : deck,
           ),
+        );
+      },
+      setDeckPriority: (deckId, priority) => {
+        setDecks((currentDecks) =>
+          currentDecks.map((deck) => (deck.id === deckId ? { ...deck, priority } : deck)),
         );
       },
       resetLibrary: () => setDecks(starterDecks),

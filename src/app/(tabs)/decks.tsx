@@ -1,18 +1,44 @@
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, KeyboardAvoidingView, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DeckCard } from '../../components/DeckCard';
+import { ThemeToggle } from '../../components/ThemeToggle';
+import { SuggestionChips } from '../../components/SuggestionChips';
 import { useLanguage } from '../../state/LanguageContext';
 import { useLibrary } from '../../state/LibraryContext';
-import { createTheme } from '../../theme/palette';
+import { useAppTheme } from '../../state/ThemeContext';
+import { displayFont } from '../../theme/palette';
+import { Deck } from '../../types/flashcards';
+import { nextPriority, priorityColor, priorityLabelKeys, priorityLevels } from '../../utils/priority';
 
 type DictationTarget = 'front' | 'back';
 
-const reminderLeadOptions = [0, 15, 30, 60, 120];
+type SortMode = 'folders' | 'priority';
+
+const sortModeKey = 'index-card.decks.sort.v1';
+
+const reminderLeadOptions = [0, 15, 30, 60, 120, 1440];
+const maxReminderLeadMinutes = 7 * 24 * 60;
+
+function formatLeadMinutes(minutes: number) {
+  if (minutes < 60) {
+    return `${minutes} min`;
+  }
+
+  const days = Math.floor(minutes / 1440);
+  const hours = Math.floor((minutes % 1440) / 60);
+  const rest = minutes % 60;
+
+  return [days > 0 ? `${days} d` : '', hours > 0 ? `${hours} h` : '', rest > 0 ? `${rest} min` : '']
+    .filter(Boolean)
+    .join(' ');
+}
 
 function createDefaultReminderDate() {
   return new Date(Date.now() + 60 * 60 * 1000);
@@ -22,10 +48,27 @@ function isFutureDate(date: Date) {
   return date.getTime() > Date.now();
 }
 
+function isSameText(a: string, b: string) {
+  return a.trim().toLocaleLowerCase() === b.trim().toLocaleLowerCase();
+}
+
+function uniqueValues(values: string[]) {
+  return Array.from(new Set(values));
+}
+
+// Reuse the spelling of an existing entry so "biologie" does not create a second "Biologie".
+function resolveExisting(value: string, options: string[]) {
+  return options.find((option) => isSameText(option, value)) ?? value.trim();
+}
+
 export default function DecksScreen() {
-  const theme = createTheme(useColorScheme());
-  const { decks, createDeck, addCard, deleteCard, deleteDeck, resetDeckProgress, updateDeckReminder } = useLibrary();
+  const { theme } = useAppTheme();
+  const { decks, prioritizedDecks, createDeck, addCard, deleteCard, deleteDeck, resetDeckProgress, setDeckPriority, updateDeckReminder } = useLibrary();
   const { languageCode, t } = useLanguage();
+  const { bottom: bottomInset } = useSafeAreaInsets();
+  const deckFormScrollRef = useRef<ScrollView>(null);
+  const cardScrollRef = useRef<ScrollView>(null);
+  const [sortMode, setSortMode] = useState<SortMode>('folders');
   const [isDeckModalOpen, setIsDeckModalOpen] = useState(false);
   const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
   const [dictationTarget, setDictationTarget] = useState<DictationTarget | null>(null);
@@ -37,16 +80,69 @@ export default function DecksScreen() {
   const [back, setBack] = useState('');
   const [reminderAt, setReminderAt] = useState('');
   const [reminderDate, setReminderDate] = useState(createDefaultReminderDate);
-  const [reminderLeadMinutes, setReminderLeadMinutes] = useState(30);
+  const [reminderLeadText, setReminderLeadText] = useState('30');
   const [reminderMessage, setReminderMessage] = useState('');
   const [reminderSpeak, setReminderSpeak] = useState(false);
   const [pickerMode, setPickerMode] = useState<'date' | 'time' | null>(null);
 
+  useEffect(() => {
+    AsyncStorage.getItem(sortModeKey)
+      .then((saved) => {
+        if (saved === 'folders' || saved === 'priority') {
+          setSortMode(saved);
+        }
+      })
+      .catch(() => undefined);
+  }, []);
+
+  function changeSortMode(mode: SortMode) {
+    setSortMode(mode);
+    AsyncStorage.setItem(sortModeKey, mode).catch(() => undefined);
+    Haptics.selectionAsync().catch(() => undefined);
+  }
+
+  function cyclePriority(deck: Deck) {
+    setDeckPriority(deck.id, nextPriority(deck.priority));
+    Haptics.selectionAsync().catch(() => undefined);
+  }
+
+  // Bring lower fields above the keyboard once it has finished animating in.
+  function scrollToEndSoon(scrollRef: { current: ScrollView | null }) {
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 250);
+  }
+
   const selectedDeck = decks.find((deck) => deck.id === selectedDeckId);
   const categories = Array.from(new Set(decks.map((deck) => deck.category)));
+  const folderSuggestions = uniqueValues(
+    decks.filter((deck) => isSameText(deck.category, category)).map((deck) => deck.folder),
+  );
+  const lessonSuggestions = uniqueValues(
+    decks
+      .filter((deck) => isSameText(deck.category, category) && isSameText(deck.folder, folder))
+      .map((deck) => deck.lesson),
+  );
+
+  function selectCategory(option: string) {
+    if (!isSameText(option, category)) {
+      setFolder('');
+      setLesson('');
+    }
+    setCategory(option);
+  }
+
+  function selectFolder(option: string) {
+    if (!isSameText(option, folder)) {
+      setLesson('');
+    }
+    setFolder(option);
+  }
 
   function saveDeck() {
-    createDeck(title, category, folder, lesson);
+    const resolvedCategory = resolveExisting(category, categories);
+    const resolvedFolder = resolveExisting(folder, folderSuggestions);
+    const resolvedLesson = resolveExisting(lesson, lessonSuggestions);
+
+    createDeck(title, resolvedCategory, resolvedFolder, resolvedLesson);
     setTitle('');
     setCategory('');
     setFolder('');
@@ -151,7 +247,7 @@ export default function DecksScreen() {
     setSelectedDeckId(deckId);
     setReminderAt(Number.isNaN(nextReminderDate.getTime()) ? '' : nextReminderDate.toISOString());
     setReminderDate(Number.isNaN(nextReminderDate.getTime()) ? createDefaultReminderDate() : nextReminderDate);
-    setReminderLeadMinutes(deck?.reminderLeadMinutes ?? 30);
+    setReminderLeadText(String(deck?.reminderLeadMinutes ?? 30));
     setReminderMessage(deck?.reminderMessage ?? '');
     setReminderSpeak(deck?.reminderSpeak ?? false);
   }
@@ -201,7 +297,11 @@ export default function DecksScreen() {
       return;
     }
 
-    const safeLeadMinutes = reminderLeadMinutes;
+    const safeLeadMinutes = Number.parseInt(reminderLeadText, 10);
+    if (!Number.isFinite(safeLeadMinutes) || safeLeadMinutes < 0 || safeLeadMinutes > maxReminderLeadMinutes) {
+      Alert.alert(t('reminder'), t('reminderLeadPlaceholder'));
+      return;
+    }
     const message = reminderMessage.trim() || `${selectedDeck.title}: ${t('study')}`;
     const reminderIso = reminderDate.toISOString();
 
@@ -252,19 +352,51 @@ export default function DecksScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={[styles.safeArea, { backgroundColor: theme.background }]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <View>
             <Text style={[styles.title, { color: theme.text }]}>{t('decks')}</Text>
-            <Text style={[styles.subtitle, { color: theme.muted }]}>{`${t('language')} / ${t('deck')}`}</Text>
+            <Text style={[styles.subtitle, { color: theme.muted }]}>{`${decks.length} ${t('decks')}`}</Text>
           </View>
-          <Pressable style={[styles.addButton, { backgroundColor: theme.primary }]} onPress={() => setIsDeckModalOpen(true)}>
+          <View style={styles.headerActions}>
+            <ThemeToggle />
+          <Pressable accessibilityRole="button" accessibilityLabel={t('newDeck')} style={({ pressed }) => [styles.addButton, { backgroundColor: theme.primary }, pressed && { opacity: 0.85, transform: [{ scale: 0.96 }] }]} onPress={() => setIsDeckModalOpen(true)}>
             <Text style={styles.addButtonText}>+</Text>
           </Pressable>
+          </View>
         </View>
 
-        {categories.map((currentCategory) => {
+        {decks.length > 1 && (
+          <View style={[styles.segmented, { backgroundColor: theme.elevated }]}>
+            {(['folders', 'priority'] as SortMode[]).map((mode) => {
+              const isActive = sortMode === mode;
+
+              return (
+                <Pressable
+                  key={mode}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isActive }}
+                  onPress={() => changeSortMode(mode)}
+                  style={[styles.segment, isActive && { backgroundColor: theme.surface }]}
+                >
+                  <Text style={[styles.segmentText, { color: isActive ? theme.text : theme.muted }]}>
+                    {mode === 'folders' ? t('sortFolders') : t('priority')}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+
+        {decks.length === 0 && (
+          <View style={[styles.emptyDecks, { borderColor: theme.border }]}>
+            <Text style={[styles.emptyDecksTitle, { color: theme.text }]}>{t('emptyStudyTitle')}</Text>
+            <Text style={[styles.emptyDecksBody, { color: theme.muted }]}>{t('emptyStudyBody')}</Text>
+          </View>
+        )}
+
+        {sortMode === 'folders' && categories.map((currentCategory) => {
           const categoryDecks = decks.filter((deck) => deck.category === currentCategory);
           const folders = Array.from(new Set(categoryDecks.map((deck) => deck.folder)));
 
@@ -285,7 +417,7 @@ export default function DecksScreen() {
                           .filter((deck) => deck.lesson === currentLesson)
                           .map((deck) => (
                             <Pressable key={deck.id} onPress={() => openDeck(deck.id)}>
-                              <DeckCard deck={deck} theme={theme} />
+                              <DeckCard deck={deck} theme={theme} onPriorityPress={() => cyclePriority(deck)} />
                             </Pressable>
                           ))}
                       </View>
@@ -296,16 +428,45 @@ export default function DecksScreen() {
             </View>
           );
         })}
+        {sortMode === 'priority' &&
+          priorityLevels.map((level) => {
+            const levelDecks = prioritizedDecks.filter((deck) => deck.priority === level);
+
+            if (levelDecks.length === 0) {
+              return null;
+            }
+
+            return (
+              <View key={level} style={styles.priorityGroup}>
+                <View style={styles.priorityHeader}>
+                  <Ionicons name={level === 'low' ? 'flag-outline' : 'flag'} size={20} color={priorityColor(theme, level)} />
+                  <Text style={[styles.priorityTitle, { color: theme.text }]}>{t(priorityLabelKeys[level])}</Text>
+                  <Text style={[styles.priorityCount, { color: theme.muted }]}>{levelDecks.length}</Text>
+                </View>
+                {levelDecks.map((deck) => (
+                  <Pressable key={deck.id} onPress={() => openDeck(deck.id)}>
+                    <DeckCard deck={deck} theme={theme} onPriorityPress={() => cyclePriority(deck)} />
+                  </Pressable>
+                ))}
+              </View>
+            );
+          })}
       </ScrollView>
 
-      <Modal transparent visible={isDeckModalOpen} animationType="slide" onRequestClose={() => setIsDeckModalOpen(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalBackdrop}>
-          <View style={[styles.modal, { backgroundColor: theme.surface }]}> 
+      <Modal transparent statusBarTranslucent visible={isDeckModalOpen} animationType="slide" onRequestClose={() => setIsDeckModalOpen(false)}>
+        <KeyboardAvoidingView behavior="padding" style={styles.modalBackdrop}>
+          <View style={[styles.modal, styles.editModal, { backgroundColor: theme.surface, paddingBottom: 20 + bottomInset }]}>
             <Text style={[styles.modalTitle, { color: theme.text }]}>{t('newDeck')}</Text>
-            <TextInput value={category} onChangeText={setCategory} placeholder={t('language')} placeholderTextColor={theme.muted} style={[styles.input, { color: theme.text, borderColor: theme.border }]} />
-            <TextInput value={folder} onChangeText={setFolder} placeholder={t('folderPlaceholder')} placeholderTextColor={theme.muted} style={[styles.input, { color: theme.text, borderColor: theme.border }]} />
-            <TextInput value={lesson} onChangeText={setLesson} placeholder={t('lessonPlaceholder')} placeholderTextColor={theme.muted} style={[styles.input, { color: theme.text, borderColor: theme.border }]} />
-            <TextInput value={title} onChangeText={setTitle} placeholder={t('deckPlaceholder')} placeholderTextColor={theme.muted} style={[styles.input, { color: theme.text, borderColor: theme.border }]} />
+            <ScrollView ref={deckFormScrollRef} contentContainerStyle={styles.editModalContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
+              {categories.length > 0 && <Text style={[styles.suggestionHint, { color: theme.muted }]}>{t('suggestionHint')}</Text>}
+              <SuggestionChips options={categories} value={category} theme={theme} onSelect={selectCategory} />
+              <TextInput value={category} onChangeText={setCategory} placeholder={t('categoryPlaceholder')} placeholderTextColor={theme.muted} style={[styles.input, { color: theme.text, borderColor: theme.border }]} />
+              <SuggestionChips options={folderSuggestions} value={folder} theme={theme} onSelect={selectFolder} />
+              <TextInput value={folder} onChangeText={setFolder} placeholder={t('folderPlaceholder')} placeholderTextColor={theme.muted} style={[styles.input, { color: theme.text, borderColor: theme.border }]} />
+              <SuggestionChips options={lessonSuggestions} value={lesson} theme={theme} onSelect={setLesson} />
+              <TextInput value={lesson} onChangeText={setLesson} onFocus={() => scrollToEndSoon(deckFormScrollRef)} placeholder={t('lessonPlaceholder')} placeholderTextColor={theme.muted} style={[styles.input, { color: theme.text, borderColor: theme.border }]} />
+              <TextInput value={title} onChangeText={setTitle} onFocus={() => scrollToEndSoon(deckFormScrollRef)} placeholder={t('deckPlaceholder')} placeholderTextColor={theme.muted} style={[styles.input, { color: theme.text, borderColor: theme.border }]} />
+            </ScrollView>
             <View style={styles.modalActions}>
               <Pressable style={[styles.secondaryButton, { borderColor: theme.border }]} onPress={() => setIsDeckModalOpen(false)}>
                 <Text style={[styles.secondaryText, { color: theme.text }]}>{t('cancel')}</Text>
@@ -318,10 +479,10 @@ export default function DecksScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      <Modal transparent visible={!!selectedDeck} animationType="slide" onRequestClose={() => setSelectedDeckId(null)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalBackdrop}>
-          <View style={[styles.modal, styles.editModal, { backgroundColor: theme.surface }]}> 
-            <ScrollView contentContainerStyle={styles.editModalContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
+      <Modal transparent statusBarTranslucent visible={!!selectedDeck} animationType="slide" onRequestClose={() => setSelectedDeckId(null)}>
+        <KeyboardAvoidingView behavior="padding" style={styles.modalBackdrop}>
+          <View style={[styles.modal, styles.editModal, { backgroundColor: theme.surface, paddingBottom: 20 + bottomInset }]}> 
+            <ScrollView ref={cardScrollRef} contentContainerStyle={styles.editModalContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator>
               <Text style={[styles.modalTitle, { color: theme.text }]}>{t('cards')} · {selectedDeck?.title}</Text>
               <View style={styles.inputBlock}>
                 <TextInput value={front} onChangeText={setFront} placeholder={t('frontPlaceholder')} placeholderTextColor={theme.muted} multiline style={[styles.input, styles.textArea, { color: theme.text, borderColor: theme.border }]} />
@@ -364,17 +525,31 @@ export default function DecksScreen() {
                 </View>
                 <View style={styles.leadOptions}>
                   {reminderLeadOptions.map((minutes) => {
-                    const isActive = reminderLeadMinutes === minutes;
-                    const label = minutes === 0 ? '0 min' : minutes >= 60 ? `${minutes / 60} h` : `${minutes} min`;
+                    const isActive = reminderLeadText.trim() === String(minutes);
 
                     return (
-                      <Pressable key={minutes} style={[styles.leadOption, { backgroundColor: isActive ? theme.primary : theme.elevated, borderColor: theme.border }]} onPress={() => setReminderLeadMinutes(minutes)}>
-                        <Text style={[styles.leadOptionText, { color: isActive ? '#FFFFFF' : theme.text }]}>{label}</Text>
+                      <Pressable key={minutes} accessibilityRole="button" accessibilityState={{ selected: isActive }} style={[styles.leadOption, { backgroundColor: isActive ? theme.primary : theme.elevated, borderColor: theme.border }]} onPress={() => setReminderLeadText(String(minutes))}>
+                        <Text style={[styles.leadOptionText, { color: isActive ? '#FFFFFF' : theme.text }]}>{formatLeadMinutes(minutes)}</Text>
                       </Pressable>
                     );
                   })}
                 </View>
-                <TextInput value={reminderMessage} onChangeText={setReminderMessage} placeholder={t('reminderMessagePlaceholder')} placeholderTextColor={theme.muted} multiline style={[styles.input, styles.messageArea, { color: theme.text, borderColor: theme.border }]} />
+                <View style={styles.leadCustomRow}>
+                  <TextInput
+                    value={reminderLeadText}
+                    onChangeText={(text) => setReminderLeadText(text.replace(/[^0-9]/g, '').slice(0, 5))}
+                    onFocus={() => scrollToEndSoon(cardScrollRef)}
+                    keyboardType="number-pad"
+                    maxLength={5}
+                    placeholder={t('reminderLeadPlaceholder')}
+                    placeholderTextColor={theme.muted}
+                    style={[styles.input, styles.leadInput, { color: theme.text, borderColor: theme.border }]}
+                  />
+                  <Text style={[styles.leadUnit, { color: theme.muted }]}>
+                    {Number.parseInt(reminderLeadText, 10) >= 60 ? `min = ${formatLeadMinutes(Number.parseInt(reminderLeadText, 10))}` : 'min'}
+                  </Text>
+                </View>
+                <TextInput value={reminderMessage} onChangeText={setReminderMessage} onFocus={() => scrollToEndSoon(cardScrollRef)} placeholder={t('reminderMessagePlaceholder')} placeholderTextColor={theme.muted} multiline style={[styles.input, styles.messageArea, { color: theme.text, borderColor: theme.border }]} />
                 <Pressable style={[styles.reminderToggle, { backgroundColor: reminderSpeak ? theme.secondary : theme.elevated }]} onPress={() => setReminderSpeak((currentValue) => !currentValue)}>
                   <Text style={[styles.reminderToggleText, { color: reminderSpeak ? '#FFFFFF' : theme.text }]}>{t('reminderSpeak')}</Text>
                 </Pressable>
@@ -422,7 +597,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
-    paddingBottom: 110,
+    paddingBottom: 32,
     gap: 14,
   },
   header: {
@@ -432,13 +607,75 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   title: {
+    fontFamily: displayFont,
     fontSize: 34,
-    fontWeight: '900',
+    fontWeight: '700',
+    letterSpacing: -0.5,
+  },
+  segmented: {
+    flexDirection: 'row',
+    borderRadius: 14,
+    padding: 3,
+  },
+  segment: {
+    flex: 1,
+    minHeight: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 11,
+  },
+  segmentText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  priorityGroup: {
+    gap: 12,
+    marginTop: 8,
+  },
+  priorityHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  priorityTitle: {
+    fontFamily: displayFont,
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  priorityCount: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  suggestionHint: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  emptyDecks: {
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderRadius: 22,
+    padding: 22,
+    gap: 6,
+  },
+  emptyDecksTitle: {
+    fontFamily: displayFont,
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  emptyDecksBody: {
+    fontSize: 14,
+    lineHeight: 21,
+    fontWeight: '600',
   },
   subtitle: {
     fontSize: 14,
     fontWeight: '700',
     marginTop: 4,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   addButton: {
     width: 54,
@@ -557,6 +794,20 @@ const styles = StyleSheet.create({
   },
   reminderPickerText: {
     fontWeight: '900',
+  },
+  leadCustomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  leadInput: {
+    flex: 1,
+    fontVariant: ['tabular-nums'],
+  },
+  leadUnit: {
+    fontSize: 14,
+    fontWeight: '700',
+    flexShrink: 1,
   },
   leadOptions: {
     flexDirection: 'row',

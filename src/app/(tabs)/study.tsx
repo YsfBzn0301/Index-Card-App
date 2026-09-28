@@ -1,36 +1,58 @@
+import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import * as Speech from 'expo-speech';
+import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Animated, Easing, PanResponder, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { Alert, Animated, Easing, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { DeckChips } from '../../components/DeckChips';
+import { RuledPaper } from '../../components/RuledPaper';
+import { ThemeToggle } from '../../components/ThemeToggle';
 import { useLanguage } from '../../state/LanguageContext';
 import { useLibrary } from '../../state/LibraryContext';
-import { createTheme } from '../../theme/palette';
+import { useAppTheme } from '../../state/ThemeContext';
+import { displayFont } from '../../theme/palette';
+import { isAnswerMatch } from '../../utils/answerMatch';
+import { speakInLanguage, stopSpeaking } from '../../utils/speech';
 
 export default function StudyScreen() {
-  const theme = createTheme(useColorScheme());
-  const { decks, reviewCard } = useLibrary();
+  const { theme } = useAppTheme();
+  const { decks, prioritizedDecks, reviewCard } = useLibrary();
   const { languageCode, t } = useLanguage();
-  const [deckIndex, setDeckIndex] = useState(0);
+  const { deckId: requestedDeckId, at: requestToken } = useLocalSearchParams<{ deckId?: string; at?: string }>();
+  const [selectedDeckId, setSelectedDeckId] = useState<string | undefined>();
+  const [lastReviewed, setLastReviewed] = useState<{ back: string } | null>(null);
   const [cardIndex, setCardIndex] = useState(0);
+  const [handledRequest, setHandledRequest] = useState<string | undefined>();
   const [isFlipped, setIsFlipped] = useState(false);
   const [flipValue] = useState(() => new Animated.Value(0));
   const [swipeX] = useState(() => new Animated.Value(0));
   const [completionScale] = useState(() => new Animated.Value(0.82));
   const [completionOpacity] = useState(() => new Animated.Value(0));
-  const [sparkleDrift] = useState(() => new Animated.Value(0));
   const [isSpeechMode, setIsSpeechMode] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [spokenAnswer, setSpokenAnswer] = useState('');
   const [speechFeedback, setSpeechFeedback] = useState('');
   const [ttsFeedback, setTtsFeedback] = useState('');
-  const deck = decks[deckIndex] ?? decks[0];
+  // Falls back to the first deck that has cards, so a freshly created empty deck never hides the others.
+  const deck = decks.find((currentDeck) => currentDeck.id === selectedDeckId) ?? prioritizedDecks.find((currentDeck) => currentDeck.cards.length > 0) ?? decks[0];
   const dueCards = deck?.cards.filter((card) => card.mastery < 3) ?? [];
   const cards = dueCards.length > 0 ? dueCards : deck?.cards ?? [];
   const card = cards[cardIndex] ?? cards[0];
   const isComplete = !deck || !card;
   const isReviewingCompletedDeck = !!deck && dueCards.length === 0 && deck.cards.length > 0;
+
+  // Home opens a specific deck via route params; apply each request once (adjust state during render).
+  const requestKey = requestedDeckId ? `${requestedDeckId}:${requestToken ?? ''}` : undefined;
+  if (requestKey && requestKey !== handledRequest) {
+    setHandledRequest(requestKey);
+    if (decks.some((currentDeck) => currentDeck.id === requestedDeckId)) {
+      setSelectedDeckId(requestedDeckId);
+      setCardIndex(0);
+      setIsFlipped(false);
+      setLastReviewed(null);
+    }
+  }
 
   useEffect(() => {
     Animated.spring(flipValue, {
@@ -45,7 +67,6 @@ export default function StudyScreen() {
     if (!isComplete) {
       completionScale.setValue(0.82);
       completionOpacity.setValue(0);
-      sparkleDrift.setValue(0);
       return;
     }
 
@@ -53,33 +74,17 @@ export default function StudyScreen() {
       Animated.spring(completionScale, {
         toValue: 1,
         useNativeDriver: true,
-        friction: 6,
-        tension: 85,
+        friction: 7,
+        tension: 70,
       }),
       Animated.timing(completionOpacity, {
         toValue: 1,
-        duration: 360,
+        duration: 320,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(sparkleDrift, {
-            toValue: 1,
-            duration: 1100,
-            easing: Easing.inOut(Easing.quad),
-            useNativeDriver: true,
-          }),
-          Animated.timing(sparkleDrift, {
-            toValue: 0,
-            duration: 1100,
-            easing: Easing.inOut(Easing.quad),
-            useNativeDriver: true,
-          }),
-        ]),
-      ),
     ]).start();
-  }, [completionOpacity, completionScale, isComplete, sparkleDrift]);
+  }, [completionOpacity, completionScale, isComplete]);
 
   function flipCard() {
     setIsFlipped((current) => !current);
@@ -96,24 +101,21 @@ export default function StudyScreen() {
     setTtsFeedback(`${label}: ${t('speechListening')}`);
 
     try {
-      await Speech.stop();
+      const result = await speakInLanguage(textToSpeak, languageCode, {
+        rate: 0.88,
+        onStart: () => setTtsFeedback(`${label}: ${t('listen')}`),
+        onDone: () => setTtsFeedback(''),
+        onStopped: () => setTtsFeedback(''),
+        onError: (error) => {
+          const message = error.message || t('speechUnavailable');
+          setTtsFeedback(message);
+          Alert.alert(t('listen'), message);
+        },
+      });
 
-      setTimeout(() => {
-        Speech.speak(textToSpeak, {
-          language: languageCode,
-          pitch: 1,
-          rate: 0.88,
-          volume: 1,
-          onStart: () => setTtsFeedback(`${label}: ${t('listen')}`),
-          onDone: () => setTtsFeedback(''),
-          onStopped: () => setTtsFeedback(''),
-          onError: (error) => {
-            const message = error.message || t('speechUnavailable');
-            setTtsFeedback(message);
-            Alert.alert(t('listen'), message);
-          },
-        });
-      }, 80);
+      if (result === 'voice-missing') {
+        setTtsFeedback(t('voiceMissing'));
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : t('speechUnavailable');
       setTtsFeedback(message);
@@ -127,12 +129,22 @@ export default function StudyScreen() {
     }
 
     reviewCard(deck.id, card.id, grade);
+    setLastReviewed({ back: card.back });
     setIsFlipped(false);
     setSpokenAnswer('');
     setSpeechFeedback('');
     setIsListening(false);
     setTtsFeedback('');
-    setCardIndex((currentIndex) => (currentIndex + 1) % Math.max(1, cards.length));
+
+    // A card that reaches full mastery leaves the queue, so the next card slides into the same index.
+    const leavesQueue = grade === 'good' && card.mastery < 3 && card.mastery + 1 >= 3;
+    if (isReviewingCompletedDeck && grade === 'again') {
+      setCardIndex(0);
+    } else if (leavesQueue) {
+      setCardIndex((currentIndex) => (cards.length > 1 ? currentIndex % (cards.length - 1) : 0));
+    } else {
+      setCardIndex((currentIndex) => (currentIndex + 1) % Math.max(1, cards.length));
+    }
     Haptics.notificationAsync(grade === 'good' ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Warning).catch(() => undefined);
   }
 
@@ -147,8 +159,12 @@ export default function StudyScreen() {
     });
   }
 
-  function nextDeck() {
-    setDeckIndex((currentIndex) => (currentIndex + 1) % Math.max(1, decks.length));
+  function selectDeck(deckId: string) {
+    if (deckId === deck?.id) {
+      return;
+    }
+
+    setSelectedDeckId(deckId);
     setCardIndex(0);
     setIsFlipped(false);
     setIsSpeechMode(false);
@@ -156,14 +172,8 @@ export default function StudyScreen() {
     setSpokenAnswer('');
     setSpeechFeedback('');
     setTtsFeedback('');
-  }
-
-  function normalizeAnswer(value: string) {
-    return value
-      .toLocaleLowerCase()
-      .replace(/[^\p{L}\p{N}]+/gu, ' ')
-      .trim()
-      .replace(/\s+/g, ' ');
+    setLastReviewed(null);
+    stopSpeaking();
   }
 
   function enterSpeechMode() {
@@ -171,7 +181,6 @@ export default function StudyScreen() {
     setIsFlipped(false);
     setSpokenAnswer('');
     setSpeechFeedback('');
-    Alert.alert(t('speechMode'), t('speechHint'));
   }
 
   function leaveSpeechMode() {
@@ -233,7 +242,7 @@ export default function StudyScreen() {
 
         setSpokenAnswer(transcript);
 
-        if (normalizeAnswer(transcript) === normalizeAnswer(card.back)) {
+        if (isAnswerMatch(transcript, card.back)) {
           setSpeechFeedback(t('speechCorrect'));
           cleanup();
           ExpoSpeechRecognitionModule.abort();
@@ -278,10 +287,8 @@ export default function StudyScreen() {
         setSpeechFeedback(message);
         Alert.alert(t('speechMode'), message);
       }
-    } catch (error) {
-      const message = error instanceof Error
-        ? `Native Speech-Erkennung ist nicht geladen: ${error.message}`
-        : t('speechUnavailable');
+    } catch {
+      const message = t('speechUnavailable');
       setIsListening(false);
       setSpeechFeedback(message);
       Alert.alert(t('speechMode'), message);
@@ -293,7 +300,6 @@ export default function StudyScreen() {
   const swipeRotate = swipeX.interpolate({ inputRange: [-220, 0, 220], outputRange: ['-8deg', '0deg', '8deg'], extrapolate: 'clamp' });
   const againOpacity = swipeX.interpolate({ inputRange: [-140, -60], outputRange: [1, 0], extrapolate: 'clamp' });
   const goodOpacity = swipeX.interpolate({ inputRange: [60, 140], outputRange: [0, 1], extrapolate: 'clamp' });
-  const sparkleTranslateY = sparkleDrift.interpolate({ inputRange: [0, 1], outputRange: [0, -16] });
   const panResponder = PanResponder.create({
     onMoveShouldSetPanResponder: (_, gestureState) => Math.abs(gestureState.dx) > 8 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.2,
     onMoveShouldSetPanResponderCapture: (_, gestureState) => Math.abs(gestureState.dx) > 8 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.2,
@@ -328,38 +334,34 @@ export default function StudyScreen() {
     onPanResponderTerminationRequest: () => false,
   });
 
-  if (isComplete) {
-    return (
-      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}> 
-        <Animated.View style={[styles.emptyState, { opacity: completionOpacity, transform: [{ scale: completionScale }] }]}> 
-          <Animated.View style={[styles.sparkleRow, { transform: [{ translateY: sparkleTranslateY }] }]}> 
-            <View style={[styles.sparkle, { backgroundColor: theme.primary }]} />
-            <View style={[styles.sparkle, styles.sparkleLarge, { backgroundColor: theme.warning }]} />
-            <View style={[styles.sparkle, { backgroundColor: theme.secondary }]} />
-          </Animated.View>
-          <View style={[styles.trophy, { backgroundColor: theme.success }]}> 
-            <Text style={styles.trophyText}>100%</Text>
-          </View>
-          <Text style={[styles.emptyTitle, { color: theme.text }]}>{t('speechCorrect')}</Text>
-          <Text style={[styles.emptyCopy, { color: theme.muted }]}>{t('deckRepeatBody')}</Text>
-        </Animated.View>
-      </SafeAreaView>
-    );
-  }
-
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}> 
+    <SafeAreaView edges={['top', 'left', 'right']} style={[styles.safeArea, { backgroundColor: theme.background }]}> 
       <View style={styles.content}>
         <View style={styles.header}>
           <View>
             <Text style={[styles.title, { color: theme.text }]}>{t('study')}</Text>
-            <Text style={[styles.subtitle, { color: theme.muted }]}>{deck.title} · {cardIndex + 1}/{cards.length}{isReviewingCompletedDeck ? ` · ${t('reviewMode')}` : ''}</Text>
+            {!!deck && (
+              <Text style={[styles.subtitle, { color: theme.muted }]}>
+                {deck.title}
+                {card ? ` · ${cardIndex + 1}/${cards.length}${isReviewingCompletedDeck ? ` · ${t('reviewMode')}` : ''}` : ''}
+              </Text>
+            )}
           </View>
-          <Pressable style={[styles.deckSwitch, { backgroundColor: theme.elevated }]} onPress={nextDeck}>
-            <Text style={[styles.deckSwitchText, { color: theme.text }]}>{t('deck')}</Text>
-          </Pressable>
+          <ThemeToggle />
         </View>
 
+        <DeckChips decks={prioritizedDecks} selectedId={deck?.id} theme={theme} onSelect={selectDeck} />
+
+        {isComplete ? (
+          <Animated.View style={[styles.emptyState, { opacity: completionOpacity, transform: [{ scale: completionScale }] }]}>
+            <View style={[styles.emptyCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <RuledPaper lineColor={theme.border} ruleColor={theme.primary} lineCount={4} lineSpacing={26} firstLineOffset={30} />
+            </View>
+            <Text style={[styles.emptyTitle, { color: theme.text }]}>{t('emptyStudyTitle')}</Text>
+            <Text style={[styles.emptyCopy, { color: theme.muted }]}>{t('emptyStudyBody')}</Text>
+          </Animated.View>
+        ) : (
+          <>
         <Animated.View {...(!isSpeechMode ? panResponder.panHandlers : {})} style={[styles.swipeFrame, { transform: [{ translateX: swipeX }, { rotateZ: swipeRotate }] }]}> 
           <Animated.View pointerEvents="none" style={[styles.swipeBadge, styles.againBadge, { backgroundColor: theme.warning, opacity: againOpacity }]}> 
             <Text style={styles.swipeBadgeText}>{t('repeat')}</Text>
@@ -367,8 +369,9 @@ export default function StudyScreen() {
           <Animated.View pointerEvents="none" style={[styles.swipeBadge, styles.goodBadge, { backgroundColor: theme.success, opacity: goodOpacity }]}> 
             <Text style={styles.swipeBadgeText}>{t('good')}</Text>
           </Animated.View>
-          <Pressable disabled={isSpeechMode} onPress={flipCard} style={styles.cardTouchable}>
+          <Pressable disabled={isSpeechMode} onPress={flipCard} accessibilityRole="button" accessibilityLabel={`${isFlipped ? t('answer') : t('question')}: ${isFlipped ? card.back : card.front}. ${t('tapToFlip')}`} style={styles.cardTouchable}>
             <Animated.View style={[styles.studyCard, { backgroundColor: theme.surface, borderColor: theme.border, transform: [{ perspective: 1200 }, { rotateY: frontRotateY }] }]}> 
+              <RuledPaper lineColor={theme.border} ruleColor={theme.primary} />
               <View style={styles.cardTopRow}>
                 <Text style={[styles.cardHint, { color: theme.muted }]}>{t('question')}</Text>
               </View>
@@ -376,6 +379,7 @@ export default function StudyScreen() {
               <Text style={[styles.tapHint, { color: theme.muted }]}>{t('tapToFlip')}</Text>
             </Animated.View>
             <Animated.View style={[styles.studyCard, { backgroundColor: deck.accent, borderColor: deck.accent, transform: [{ perspective: 1200 }, { rotateY: backRotateY }] }]}> 
+              <RuledPaper lineColor="rgba(255,255,255,0.22)" ruleColor="rgba(255,255,255,0.7)" />
               <View style={styles.cardTopRow}>
                 <Text style={[styles.cardHint, styles.lightText]}>{t('answer')}</Text>
               </View>
@@ -386,14 +390,27 @@ export default function StudyScreen() {
         </Animated.View>
 
         <View style={styles.audioActions}>
-          <Pressable style={[styles.audioButton, { backgroundColor: theme.elevated }]} onPress={() => speak(card.front, t('front'))}>
+          <Pressable accessibilityRole="button" style={[styles.audioButton, { backgroundColor: theme.elevated }]} onPress={() => speak(card.front, t('front'))}>
             <Text style={[styles.audioButtonText, { color: theme.text }]}>{t('speakFront')}</Text>
-          </Pressable>
-          <Pressable style={[styles.audioButton, { backgroundColor: deck.accent }]} onPress={() => speak(card.back, t('answer'))}>
-            <Text style={[styles.audioButtonText, styles.lightText]}>{t('speakBack')}</Text>
           </Pressable>
         </View>
         {!!ttsFeedback && <Text style={[styles.ttsFeedback, { color: theme.muted }]}>{ttsFeedback}</Text>}
+        {!!lastReviewed && (
+          <View style={[styles.lastAnswer, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <View style={styles.lastAnswerText}>
+              <Text style={[styles.lastAnswerLabel, { color: theme.muted }]}>{t('lastAnswer')}</Text>
+              <Text style={[styles.lastAnswerValue, { color: theme.text }]} numberOfLines={2}>{lastReviewed.back}</Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('speakBack')}
+              onPress={() => speak(lastReviewed.back, t('answer'))}
+              style={({ pressed }) => [styles.lastAnswerButton, { backgroundColor: deck.accent }, pressed && styles.pressed]}
+            >
+              <Ionicons name="volume-high" size={20} color="#FFFFFF" />
+            </Pressable>
+          </View>
+        )}
 
         {isSpeechMode ? (
           <View style={[styles.speechModePanel, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
@@ -417,13 +434,15 @@ export default function StudyScreen() {
         )}
 
         <View style={styles.actions}>
-          <Pressable style={[styles.actionButton, { backgroundColor: theme.warning }]} onPress={() => review('again')}>
+          <Pressable accessibilityRole="button" style={({ pressed }) => [styles.actionButton, { backgroundColor: theme.warning }, pressed && styles.pressed]} onPress={() => review('again')}>
             <Text style={styles.actionText}>{t('again')}</Text>
           </Pressable>
-          <Pressable style={[styles.actionButton, { backgroundColor: theme.success }]} onPress={() => review('good')}>
+          <Pressable accessibilityRole="button" style={({ pressed }) => [styles.actionButton, { backgroundColor: theme.success }, pressed && styles.pressed]} onPress={() => review('good')}>
             <Text style={styles.actionText}>{t('good')}</Text>
           </Pressable>
         </View>
+          </>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -436,8 +455,8 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 20,
-    paddingBottom: 110,
-    gap: 24,
+    paddingBottom: 20,
+    gap: 20,
   },
   header: {
     flexDirection: 'row',
@@ -445,21 +464,47 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   title: {
+    fontFamily: displayFont,
     fontSize: 34,
-    fontWeight: '900',
+    fontWeight: '700',
+    letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 14,
     fontWeight: '800',
     marginTop: 4,
   },
-  deckSwitch: {
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+  lastAnswer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    borderRadius: 18,
+    paddingVertical: 10,
+    paddingLeft: 16,
+    paddingRight: 10,
   },
-  deckSwitchText: {
-    fontWeight: '900',
+  lastAnswerText: {
+    flex: 1,
+    gap: 2,
+  },
+  lastAnswerLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  lastAnswerValue: {
+    fontSize: 15,
+    lineHeight: 21,
+    fontWeight: '600',
+  },
+  lastAnswerButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   swipeFrame: {
     flex: 1,
@@ -495,10 +540,11 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     borderWidth: 1,
-    borderRadius: 34,
+    borderRadius: 26,
     padding: 24,
     justifyContent: 'space-between',
     backfaceVisibility: 'hidden',
+    overflow: 'hidden',
   },
   cardHint: {
     fontSize: 14,
@@ -534,9 +580,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   cardText: {
-    fontSize: 30,
+    fontFamily: displayFont,
+    fontSize: 28,
     lineHeight: 38,
-    fontWeight: '900',
+    fontWeight: '700',
   },
   tapHint: {
     fontSize: 13,
@@ -605,6 +652,10 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     alignItems: 'center',
   },
+  pressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.98 }],
+  },
   actionText: {
     color: '#FFFFFF',
     fontSize: 16,
@@ -617,38 +668,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  sparkleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    marginBottom: 12,
-  },
-  sparkle: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-  },
-  sparkleLarge: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-  },
-  trophy: {
-    width: 126,
-    height: 126,
-    borderRadius: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  trophyText: {
-    color: '#FFFFFF',
-    fontSize: 34,
-    fontWeight: '900',
+  emptyCard: {
+    width: 132,
+    height: 96,
+    borderRadius: 14,
+    borderWidth: 1,
+    overflow: 'hidden',
+    marginBottom: 18,
   },
   emptyTitle: {
-    fontSize: 34,
-    fontWeight: '900',
+    fontFamily: displayFont,
+    fontSize: 30,
+    fontWeight: '700',
+    letterSpacing: -0.4,
     textAlign: 'center',
   },
   emptyCopy: {
