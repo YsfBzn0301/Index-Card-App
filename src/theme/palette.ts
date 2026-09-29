@@ -20,6 +20,7 @@ const light = {
   tabDecks: '#6A4DF0',
   tabStudy: '#0F9D8C',
   tabSettings: '#C97A00',
+  tabGames: '#D9480F',
 };
 
 const dark = {
@@ -40,6 +41,7 @@ const dark = {
   tabDecks: '#9D8AFF',
   tabStudy: '#41D4C4',
   tabSettings: '#FFC05C',
+  tabGames: '#FF9A6B',
 };
 
 // Serif display face for titles and card text; system fonts avoid a new dependency.

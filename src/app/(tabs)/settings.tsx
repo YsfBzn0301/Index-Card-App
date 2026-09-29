@@ -1,29 +1,23 @@
-import Constants from 'expo-constants';
-import * as Linking from 'expo-linking';
-import { Alert, Dimensions, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Dimensions, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemeToggle } from '../../components/ThemeToggle';
 import { supportedLanguages } from '../../i18n/language';
+import { confirmAction } from '../../utils/confirm';
 import { useLanguage } from '../../state/LanguageContext';
 import { useLibrary } from '../../state/LibraryContext';
 import { useAppTheme } from '../../state/ThemeContext';
 import { displayFont } from '../../theme/palette';
 
-const developmentBuildApkUrl = 'https://expo.dev/artifacts/eas/gCpUVE3Sp-dhWQEZNYl_liXJmLQY6w_nKCsL3zhN9zo.apk';
 
 export default function SettingsScreen() {
   const { theme, colorScheme } = useAppTheme();
   const insets = useSafeAreaInsets(); // TEMP: debug readout for the Android navigation bar issue, remove afterwards
   const { resetLibrary, totalCards, masteredCards } = useLibrary();
   const { languageCode, languageLabel, setLanguageCode, t } = useLanguage();
-  const isDevelopmentBuildActive = Constants.appOwnership !== 'expo';
 
   function confirmReset() {
-    Alert.alert(t('resetSamplesTitle'), t('resetSamplesBody'), [
-      { text: t('cancel'), style: 'cancel' },
-      { text: t('resetSamples'), style: 'destructive', onPress: resetLibrary },
-    ]);
+    confirmAction({ title: t('resetSamplesTitle'), message: t('resetSamplesBody'), cancelLabel: t('cancel'), confirmLabel: t('resetSamples'), destructive: true, onConfirm: resetLibrary });
   }
 
   return (
@@ -51,19 +45,6 @@ export default function SettingsScreen() {
         <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
           <Text style={[styles.panelTitle, { color: theme.text }]}>{t('conceptTitle')}</Text>
           <Text style={[styles.copy, { color: theme.muted }]}>{t('conceptBody')}</Text>
-        </View>
-        <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
-          <Text style={[styles.panelTitle, { color: theme.text }]}>{t('developmentBuildTitle')}</Text>
-          <Text style={[styles.copy, { color: theme.muted }]}>{t('developmentBuildBody')}</Text>
-          <Pressable
-            disabled={isDevelopmentBuildActive}
-            style={[styles.linkButton, { backgroundColor: isDevelopmentBuildActive ? theme.elevated : theme.secondary }]}
-            onPress={() => Linking.openURL(developmentBuildApkUrl)}
-          >
-            <Text style={[styles.linkButtonText, { color: isDevelopmentBuildActive ? theme.muted : '#FFFFFF' }]}> 
-              {isDevelopmentBuildActive ? t('developmentBuildInstalled') : t('developmentBuildLink')}
-            </Text>
-          </Pressable>
         </View>
         <View style={[styles.panel, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
           <Text style={[styles.panelTitle, { color: theme.text }]}>{t('status')}</Text>

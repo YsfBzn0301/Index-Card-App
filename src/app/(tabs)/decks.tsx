@@ -5,19 +5,26 @@ import * as Notifications from 'expo-notifications';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { openGame } from '../../utils/openGame';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Image } from 'expo-image';
+import { Confetti } from '../../components/Confetti';
+import { confirmAction } from '../../utils/confirm';
+import { DeckActionSheet } from '../../components/DeckActionSheet';
 import { DeckCard } from '../../components/DeckCard';
+import { DeckRow } from '../../components/DeckRow';
 import { ThemeToggle } from '../../components/ThemeToggle';
 import { SuggestionChips } from '../../components/SuggestionChips';
 import { useLanguage } from '../../state/LanguageContext';
 import { useLibrary } from '../../state/LibraryContext';
 import { useAppTheme } from '../../state/ThemeContext';
 import { displayFont } from '../../theme/palette';
+import { pickCardImage, deleteCardImage } from '../../utils/cardImages';
 import { Deck } from '../../types/flashcards';
 import { nextPriority, priorityColor, priorityLabelKeys, priorityLevels } from '../../utils/priority';
 
-type DictationTarget = 'front' | 'back';
+type CardSide = 'front' | 'back';
 
 type SortMode = 'folders' | 'priority';
 
@@ -64,25 +71,28 @@ function resolveExisting(value: string, options: string[]) {
 export default function DecksScreen() {
   const { theme } = useAppTheme();
   const { decks, prioritizedDecks, createDeck, addCard, deleteCard, deleteDeck, resetDeckProgress, setDeckPriority, updateDeckReminder } = useLibrary();
-  const { languageCode, t } = useLanguage();
+  const { t } = useLanguage();
   const { bottom: bottomInset } = useSafeAreaInsets();
   const deckFormScrollRef = useRef<ScrollView>(null);
   const cardScrollRef = useRef<ScrollView>(null);
   const [sortMode, setSortMode] = useState<SortMode>('folders');
   const [isDeckModalOpen, setIsDeckModalOpen] = useState(false);
   const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
-  const [dictationTarget, setDictationTarget] = useState<DictationTarget | null>(null);
+  const [menuDeckId, setMenuDeckId] = useState<string | null>(null);
+  const [focusedField, setFocusedField] = useState<'category' | 'folder' | 'lesson' | null>(null);
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('');
   const [folder, setFolder] = useState('');
   const [lesson, setLesson] = useState('');
   const [front, setFront] = useState('');
   const [back, setBack] = useState('');
+  const [confettiBurst, setConfettiBurst] = useState(0);
+  const [frontImageUri, setFrontImageUri] = useState<string | undefined>();
+  const [backImageUri, setBackImageUri] = useState<string | undefined>();
   const [reminderAt, setReminderAt] = useState('');
   const [reminderDate, setReminderDate] = useState(createDefaultReminderDate);
   const [reminderLeadText, setReminderLeadText] = useState('30');
   const [reminderMessage, setReminderMessage] = useState('');
-  const [reminderSpeak, setReminderSpeak] = useState(false);
   const [pickerMode, setPickerMode] = useState<'date' | 'time' | null>(null);
 
   useEffect(() => {
@@ -152,14 +162,66 @@ export default function DecksScreen() {
   }
 
   function saveCard() {
-    if (!selectedDeck || !front.trim() || !back.trim()) {
+    // Each side needs text or an image; the back may be an image alone.
+    if (!selectedDeck || (!front.trim() && !frontImageUri) || (!back.trim() && !backImageUri)) {
       return;
     }
 
-    addCard(selectedDeck.id, front, back);
+    addCard(selectedDeck.id, front, back, frontImageUri, backImageUri);
     setFront('');
     setBack('');
+    setFrontImageUri(undefined);
+    setBackImageUri(undefined);
+    setConfettiBurst((current) => current + 1);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
+  }
+
+  async function chooseImage(target: CardSide) {
+    const setUri = target === 'front' ? setFrontImageUri : setBackImageUri;
+    const previous = target === 'front' ? frontImageUri : backImageUri;
+
+    try {
+      const uri = await pickCardImage();
+      if (uri) {
+        deleteCardImage(previous);
+        setUri(uri);
+      }
+    } catch {
+      Alert.alert(t('addImage'), t('imageError'));
+    }
+  }
+
+  function removeImage(target: CardSide) {
+    deleteCardImage(target === 'front' ? frontImageUri : backImageUri);
+    (target === 'front' ? setFrontImageUri : setBackImageUri)(undefined);
+  }
+
+  function renderImagePicker(target: CardSide) {
+    const uri = target === 'front' ? frontImageUri : backImageUri;
+
+    return uri ? (
+      <View style={styles.imagePreviewWrap}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('addImage')} onPress={() => chooseImage(target)} style={styles.imagePreview}>
+          <Image source={{ uri }} contentFit="contain" style={styles.imagePreviewImage} />
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('removeImage')} onPress={() => removeImage(target)} style={styles.imageRemove}>
+          <Ionicons name="close" size={16} color="#fff" />
+        </Pressable>
+      </View>
+    ) : (
+      <Pressable style={[styles.dictationButton, { backgroundColor: theme.elevated }]} onPress={() => chooseImage(target)}>
+        <Text style={[styles.dictationButtonText, { color: theme.text }]}>{t('addImage')}</Text>
+      </Pressable>
+    );
+  }
+
+  function startGame(deck: Deck) {
+    if (deck.cards.length < 2) {
+      Alert.alert(t('games'), t('gameNeedCards'));
+      return;
+    }
+
+    openGame(deck.id);
   }
 
   function confirmDeleteCard(cardId: string) {
@@ -167,78 +229,15 @@ export default function DecksScreen() {
       return;
     }
 
-    Alert.alert(t('cardDeleteTitle'), t('cardDeleteBody'), [
-      { text: t('cancel'), style: 'cancel' },
-      { text: t('cardDelete'), style: 'destructive', onPress: () => deleteCard(selectedDeck.id, cardId) },
-    ]);
+    confirmAction({ title: t('cardDeleteTitle'), message: t('cardDeleteBody'), cancelLabel: t('cancel'), confirmLabel: t('cardDelete'), destructive: true, onConfirm: () => deleteCard(selectedDeck.id, cardId) });
   }
 
   function confirmDeleteDeck(deckId: string, deckTitle: string) {
-    Alert.alert(t('deckDeleteTitle'), `${deckTitle} ${t('deckDeleteBody')}`, [
-      { text: t('cancel'), style: 'cancel' },
-      { text: t('deckDelete'), style: 'destructive', onPress: () => deleteDeck(deckId) },
-    ]);
+    confirmAction({ title: t('deckDeleteTitle'), message: `${deckTitle} ${t('deckDeleteBody')}`, cancelLabel: t('cancel'), confirmLabel: t('deckDelete'), destructive: true, onConfirm: () => deleteDeck(deckId) });
   }
 
   function confirmResetDeck(deckId: string, deckTitle: string) {
-    Alert.alert(t('deckRepeatTitle'), `${deckTitle} ${t('deckRepeatBody')}`, [
-      { text: t('cancel'), style: 'cancel' },
-      { text: t('deckRepeat'), onPress: () => resetDeckProgress(deckId) },
-    ]);
-  }
-
-  async function startDictation(target: DictationTarget) {
-    try {
-      const { ExpoSpeechRecognitionModule } = await import('expo-speech-recognition');
-      const permissions = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-
-      if (!permissions.granted || !ExpoSpeechRecognitionModule.isRecognitionAvailable()) {
-        Alert.alert(t('language'), t('speechUnavailable'));
-        return;
-      }
-
-      setDictationTarget(target);
-
-      let cleanup = () => undefined;
-      const resultListener = ExpoSpeechRecognitionModule.addListener('result', (event) => {
-        const transcript = event.results[0]?.transcript?.trim();
-        if (!transcript) {
-          return;
-        }
-
-        const setText = target === 'front' ? setFront : setBack;
-        setText((currentText) => (currentText.trim() ? `${currentText.trim()} ${transcript}` : transcript));
-      });
-      const endListener = ExpoSpeechRecognitionModule.addListener('end', () => {
-        setDictationTarget(null);
-        cleanup();
-      });
-      const errorListener = ExpoSpeechRecognitionModule.addListener('error', (event) => {
-        setDictationTarget(null);
-        cleanup();
-        Alert.alert(t('language'), event.message || t('speechUnavailable'));
-      });
-
-      cleanup = () => {
-        resultListener.remove();
-        endListener.remove();
-        errorListener.remove();
-      };
-
-      ExpoSpeechRecognitionModule.start({
-        lang: languageCode,
-        interimResults: false,
-        continuous: false,
-        maxAlternatives: 1,
-        iosTaskHint: 'dictation',
-        androidIntentOptions: {
-          EXTRA_LANGUAGE_MODEL: 'free_form',
-        },
-      });
-    } catch {
-      setDictationTarget(null);
-      Alert.alert(t('language'), t('speechUnavailable'));
-    }
+    confirmAction({ title: t('deckRepeatTitle'), message: `${deckTitle} ${t('deckRepeatBody')}`, cancelLabel: t('cancel'), confirmLabel: t('deckRepeat'), onConfirm: () => resetDeckProgress(deckId) });
   }
 
   function openDeck(deckId: string) {
@@ -249,7 +248,6 @@ export default function DecksScreen() {
     setReminderDate(Number.isNaN(nextReminderDate.getTime()) ? createDefaultReminderDate() : nextReminderDate);
     setReminderLeadText(String(deck?.reminderLeadMinutes ?? 30));
     setReminderMessage(deck?.reminderMessage ?? '');
-    setReminderSpeak(deck?.reminderSpeak ?? false);
   }
 
   function formatReminderDate(date: Date) {
@@ -293,7 +291,7 @@ export default function DecksScreen() {
 
     const permissions = await Notifications.requestPermissionsAsync();
     if (!permissions.granted) {
-      Alert.alert(t('reminder'), t('speechUnavailable'));
+      Alert.alert(t('reminder'), t('notificationsDenied'));
       return;
     }
 
@@ -309,7 +307,6 @@ export default function DecksScreen() {
       reminderAt: reminderIso,
       reminderLeadMinutes: safeLeadMinutes,
       reminderMessage: message,
-      reminderSpeak,
     });
 
     await Notifications.cancelScheduledNotificationAsync(`deck-${selectedDeck.id}`).catch(() => undefined);
@@ -321,7 +318,7 @@ export default function DecksScreen() {
         title: selectedDeck.title,
         body: message,
         sound: 'default',
-        data: { reminderMessage: message, reminderSpeak, languageCode },
+        data: { reminderMessage: message },
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DATE,
@@ -338,7 +335,7 @@ export default function DecksScreen() {
           title: selectedDeck.title,
           body: message,
           sound: 'default',
-          data: { reminderMessage: message, reminderSpeak, languageCode },
+          data: { reminderMessage: message },
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DATE,
@@ -416,9 +413,9 @@ export default function DecksScreen() {
                         {folderDecks
                           .filter((deck) => deck.lesson === currentLesson)
                           .map((deck) => (
-                            <Pressable key={deck.id} onPress={() => openDeck(deck.id)}>
-                              <DeckCard deck={deck} theme={theme} onPriorityPress={() => cyclePriority(deck)} />
-                            </Pressable>
+                            <DeckRow key={deck.id} theme={theme} onPress={() => openDeck(deck.id)} onLongPress={() => setMenuDeckId(deck.id)} onDelete={() => confirmDeleteDeck(deck.id, deck.title)}>
+                              <DeckCard deck={deck} theme={theme} onPriorityPress={() => cyclePriority(deck)} onGamePress={() => startGame(deck)} />
+                            </DeckRow>
                           ))}
                       </View>
                     ))}
@@ -444,28 +441,31 @@ export default function DecksScreen() {
                   <Text style={[styles.priorityCount, { color: theme.muted }]}>{levelDecks.length}</Text>
                 </View>
                 {levelDecks.map((deck) => (
-                  <Pressable key={deck.id} onPress={() => openDeck(deck.id)}>
-                    <DeckCard deck={deck} theme={theme} onPriorityPress={() => cyclePriority(deck)} />
-                  </Pressable>
+                  <DeckRow key={deck.id} theme={theme} onPress={() => openDeck(deck.id)} onLongPress={() => setMenuDeckId(deck.id)} onDelete={() => confirmDeleteDeck(deck.id, deck.title)}>
+                    <DeckCard deck={deck} theme={theme} onPriorityPress={() => cyclePriority(deck)} onGamePress={() => startGame(deck)} />
+                  </DeckRow>
                 ))}
               </View>
             );
           })}
       </ScrollView>
 
+      <DeckActionSheet deck={decks.find((deck) => deck.id === menuDeckId)} theme={theme} onClose={() => setMenuDeckId(null)} />
+
       <Modal transparent statusBarTranslucent visible={isDeckModalOpen} animationType="slide" onRequestClose={() => setIsDeckModalOpen(false)}>
         <KeyboardAvoidingView behavior="padding" style={styles.modalBackdrop}>
           <View style={[styles.modal, styles.editModal, { backgroundColor: theme.surface, paddingBottom: 20 + bottomInset }]}>
             <Text style={[styles.modalTitle, { color: theme.text }]}>{t('newDeck')}</Text>
             <ScrollView ref={deckFormScrollRef} contentContainerStyle={styles.editModalContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
-              {categories.length > 0 && <Text style={[styles.suggestionHint, { color: theme.muted }]}>{t('suggestionHint')}</Text>}
-              <SuggestionChips options={categories} value={category} theme={theme} onSelect={selectCategory} />
-              <TextInput value={category} onChangeText={setCategory} placeholder={t('categoryPlaceholder')} placeholderTextColor={theme.muted} style={[styles.input, { color: theme.text, borderColor: theme.border }]} />
-              <SuggestionChips options={folderSuggestions} value={folder} theme={theme} onSelect={selectFolder} />
-              <TextInput value={folder} onChangeText={setFolder} placeholder={t('folderPlaceholder')} placeholderTextColor={theme.muted} style={[styles.input, { color: theme.text, borderColor: theme.border }]} />
-              <SuggestionChips options={lessonSuggestions} value={lesson} theme={theme} onSelect={setLesson} />
-              <TextInput value={lesson} onChangeText={setLesson} onFocus={() => scrollToEndSoon(deckFormScrollRef)} placeholder={t('lessonPlaceholder')} placeholderTextColor={theme.muted} style={[styles.input, { color: theme.text, borderColor: theme.border }]} />
-              <TextInput value={title} onChangeText={setTitle} onFocus={() => scrollToEndSoon(deckFormScrollRef)} placeholder={t('deckPlaceholder')} placeholderTextColor={theme.muted} style={[styles.input, { color: theme.text, borderColor: theme.border }]} />
+              <TextInput value={title} onChangeText={setTitle} placeholder={t('deckPlaceholder')} placeholderTextColor={theme.muted} style={[styles.input, { color: theme.text, borderColor: theme.border }]} />
+              {/* Existing options only appear once the matching field has been tapped. */}
+              <TextInput value={category} onChangeText={setCategory} onFocus={() => setFocusedField('category')} onBlur={() => setFocusedField((current) => (current === 'category' ? null : current))} placeholder={t('categoryPlaceholder')} placeholderTextColor={theme.muted} style={[styles.input, { color: theme.text, borderColor: theme.border }]} />
+              {focusedField === 'category' && categories.length > 0 && <Text style={[styles.suggestionHint, { color: theme.muted }]}>{t('suggestionHint')}</Text>}
+              {focusedField === 'category' && <SuggestionChips options={categories} value={category} theme={theme} onSelect={selectCategory} />}
+              <TextInput value={folder} onChangeText={setFolder} onFocus={() => setFocusedField('folder')} onBlur={() => setFocusedField((current) => (current === 'folder' ? null : current))} placeholder={t('folderPlaceholder')} placeholderTextColor={theme.muted} style={[styles.input, { color: theme.text, borderColor: theme.border }]} />
+              {focusedField === 'folder' && <SuggestionChips options={folderSuggestions} value={folder} theme={theme} onSelect={selectFolder} />}
+              <TextInput value={lesson} onChangeText={setLesson} onFocus={() => { setFocusedField('lesson'); scrollToEndSoon(deckFormScrollRef); }} onBlur={() => setFocusedField((current) => (current === 'lesson' ? null : current))} placeholder={t('lessonPlaceholder')} placeholderTextColor={theme.muted} style={[styles.input, { color: theme.text, borderColor: theme.border }]} />
+              {focusedField === 'lesson' && <SuggestionChips options={lessonSuggestions} value={lesson} theme={theme} onSelect={setLesson} />}
             </ScrollView>
             <View style={styles.modalActions}>
               <Pressable style={[styles.secondaryButton, { borderColor: theme.border }]} onPress={() => setIsDeckModalOpen(false)}>
@@ -486,23 +486,21 @@ export default function DecksScreen() {
               <Text style={[styles.modalTitle, { color: theme.text }]}>{t('cards')} · {selectedDeck?.title}</Text>
               <View style={styles.inputBlock}>
                 <TextInput value={front} onChangeText={setFront} placeholder={t('frontPlaceholder')} placeholderTextColor={theme.muted} multiline style={[styles.input, styles.textArea, { color: theme.text, borderColor: theme.border }]} />
-                <Pressable style={[styles.dictationButton, { backgroundColor: theme.elevated }]} onPress={() => startDictation('front')}>
-                  <Text style={[styles.dictationButtonText, { color: theme.text }]}>{dictationTarget === 'front' ? '...' : t('recordFront')}</Text>
-                </Pressable>
+                {renderImagePicker('front')}
               </View>
               <View style={styles.inputBlock}>
                 <TextInput value={back} onChangeText={setBack} placeholder={`${t('answer')}`} placeholderTextColor={theme.muted} multiline style={[styles.input, styles.textArea, { color: theme.text, borderColor: theme.border }]} />
-                <Pressable style={[styles.dictationButton, { backgroundColor: theme.elevated }]} onPress={() => startDictation('back')}>
-                  <Text style={[styles.dictationButtonText, { color: theme.text }]}>{dictationTarget === 'back' ? '...' : t('recordBack')}</Text>
-                </Pressable>
+                {renderImagePicker('back')}
               </View>
               <View style={styles.cardListContent}>
                 {selectedDeck?.cards.map((card) => (
                   <View key={card.id} style={[styles.cardRow, { borderColor: theme.border, backgroundColor: theme.elevated }]}> 
                     <View style={styles.cardRowText}>
                       <Text style={[styles.cardRowLabel, { color: theme.muted }]}>{t('front')}</Text>
+                      {!!card.frontImageUri && <Image source={{ uri: card.frontImageUri }} contentFit="contain" style={styles.cardRowImage} />}
                       <Text style={[styles.cardRowValue, { color: theme.text }]}>{card.front}</Text>
                       <Text style={[styles.cardRowLabel, { color: theme.muted }]}>{t('answer')}</Text>
+                      {!!card.backImageUri && <Image source={{ uri: card.backImageUri }} contentFit="contain" style={styles.cardRowImage} />}
                       <Text style={[styles.cardRowValue, { color: theme.text }]}>{card.back}</Text>
                     </View>
                     <View style={styles.cardRowActions}>
@@ -550,9 +548,6 @@ export default function DecksScreen() {
                   </Text>
                 </View>
                 <TextInput value={reminderMessage} onChangeText={setReminderMessage} onFocus={() => scrollToEndSoon(cardScrollRef)} placeholder={t('reminderMessagePlaceholder')} placeholderTextColor={theme.muted} multiline style={[styles.input, styles.messageArea, { color: theme.text, borderColor: theme.border }]} />
-                <Pressable style={[styles.reminderToggle, { backgroundColor: reminderSpeak ? theme.secondary : theme.elevated }]} onPress={() => setReminderSpeak((currentValue) => !currentValue)}>
-                  <Text style={[styles.reminderToggleText, { color: reminderSpeak ? '#FFFFFF' : theme.text }]}>{t('reminderSpeak')}</Text>
-                </Pressable>
                 <Pressable style={[styles.primaryButton, { backgroundColor: theme.secondary }]} onPress={saveReminder}>
                   <Text style={styles.primaryText}>{t('reminderSave')}</Text>
                 </Pressable>
@@ -585,6 +580,7 @@ export default function DecksScreen() {
               </Pressable>
             </View>
           </View>
+        <Confetti burst={confettiBurst} />
         </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
@@ -753,6 +749,35 @@ const styles = StyleSheet.create({
   messageArea: {
     minHeight: 72,
     textAlignVertical: 'top',
+  },
+  imagePreviewWrap: {
+    alignSelf: 'flex-start',
+    marginTop: 4,
+  },
+  imagePreview: {
+    width: 220,
+    height: 160,
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  imagePreviewImage: {
+    flex: 1,
+  },
+  imageRemove: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#d64545',
+  },
+  cardRowImage: {
+    width: 140,
+    height: 100,
+    borderRadius: 10,
   },
   inputBlock: {
     gap: 8,

@@ -2,13 +2,17 @@ import * as Notifications from 'expo-notifications';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { Platform } from 'react-native';
+import * as SplashScreen from 'expo-splash-screen';
+import { Platform, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { ReminderSpeechListener } from '../components/ReminderSpeechListener';
+import { AnimatedSplash } from '../components/AnimatedSplash';
 import { LanguageProvider } from '../state/LanguageContext';
 import { LibraryProvider } from '../state/LibraryContext';
 import { ThemeProvider, useAppTheme } from '../state/ThemeContext';
+
+// Keep the native splash until AnimatedSplash has painted its first frame.
+SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -23,10 +27,11 @@ function RootNavigator() {
   const { theme, colorScheme } = useAppTheme();
 
   return (
-    <>
+    <View style={{ flex: 1, backgroundColor: theme.background }}>
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.background } }} />
-    </>
+      <AnimatedSplash />
+    </View>
   );
 }
 
@@ -47,7 +52,6 @@ export default function RootLayout() {
       <ThemeProvider>
         <LanguageProvider>
           <LibraryProvider>
-            <ReminderSpeechListener />
             <RootNavigator />
           </LibraryProvider>
         </LanguageProvider>

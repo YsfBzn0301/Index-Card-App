@@ -10,6 +10,7 @@ const tabIcons = {
   index: { filled: 'sparkles', outline: 'sparkles-outline', motion: 'wiggle' },
   decks: { filled: 'albums', outline: 'albums-outline', motion: 'tilt' },
   study: { filled: 'school', outline: 'school-outline', motion: 'bounce' },
+  games: { filled: 'game-controller', outline: 'game-controller-outline', motion: 'tilt' },
   settings: { filled: 'settings', outline: 'settings-outline', motion: 'spin' },
 } as const satisfies Record<string, { filled: string; outline: string; motion: TabMotion }>;
 
@@ -22,6 +23,7 @@ export default function TabsLayout() {
     index: theme.tabHome,
     decks: theme.tabDecks,
     study: theme.tabStudy,
+    games: theme.tabGames,
     settings: theme.tabSettings,
   };
 
@@ -56,6 +58,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="index" options={{ title: t('home') }} />
       <Tabs.Screen name="decks" options={{ title: t('decks') }} />
       <Tabs.Screen name="study" options={{ title: t('study') }} />
+      <Tabs.Screen name="games" options={{ title: t('games') }} />
       <Tabs.Screen name="settings" options={{ title: t('settings') }} />
     </Tabs>
   );

@@ -2,9 +2,11 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Animated, Easing, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Confetti } from '../../components/Confetti';
+import { CardFace } from '../../components/CardFace';
 import { DeckChips } from '../../components/DeckChips';
 import { RuledPaper } from '../../components/RuledPaper';
 import { ThemeToggle } from '../../components/ThemeToggle';
@@ -12,35 +14,33 @@ import { useLanguage } from '../../state/LanguageContext';
 import { useLibrary } from '../../state/LibraryContext';
 import { useAppTheme } from '../../state/ThemeContext';
 import { displayFont } from '../../theme/palette';
-import { isAnswerMatch } from '../../utils/answerMatch';
-import { speakInLanguage, stopSpeaking } from '../../utils/speech';
 
 export default function StudyScreen() {
   const { theme } = useAppTheme();
-  const { decks, prioritizedDecks, reviewCard } = useLibrary();
-  const { languageCode, t } = useLanguage();
+  const { decks, prioritizedDecks, reviewCard, resetDeckProgress } = useLibrary();
+  const { t } = useLanguage();
   const { deckId: requestedDeckId, at: requestToken } = useLocalSearchParams<{ deckId?: string; at?: string }>();
   const [selectedDeckId, setSelectedDeckId] = useState<string | undefined>();
   const [lastReviewed, setLastReviewed] = useState<{ back: string } | null>(null);
   const [cardIndex, setCardIndex] = useState(0);
   const [handledRequest, setHandledRequest] = useState<string | undefined>();
+  const [confettiBurst, setConfettiBurst] = useState(0);
+  // Set when the last open card of a stack was mastered; the dialog offers other stacks or a repeat.
+  const [finished, setFinished] = useState<{ deckId: string; title: string } | null>(null);
   const [isFlipped, setIsFlipped] = useState(false);
   const [flipValue] = useState(() => new Animated.Value(0));
   const [swipeX] = useState(() => new Animated.Value(0));
   const [completionScale] = useState(() => new Animated.Value(0.82));
   const [completionOpacity] = useState(() => new Animated.Value(0));
-  const [isSpeechMode, setIsSpeechMode] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-  const [spokenAnswer, setSpokenAnswer] = useState('');
-  const [speechFeedback, setSpeechFeedback] = useState('');
-  const [ttsFeedback, setTtsFeedback] = useState('');
   // Falls back to the first deck that has cards, so a freshly created empty deck never hides the others.
   const deck = decks.find((currentDeck) => currentDeck.id === selectedDeckId) ?? prioritizedDecks.find((currentDeck) => currentDeck.cards.length > 0) ?? decks[0];
   const dueCards = deck?.cards.filter((card) => card.mastery < 3) ?? [];
   const cards = dueCards.length > 0 ? dueCards : deck?.cards ?? [];
   const card = cards[cardIndex] ?? cards[0];
   const isComplete = !deck || !card;
-  const isReviewingCompletedDeck = !!deck && dueCards.length === 0 && deck.cards.length > 0;
+  // Other stacks that still have cards to learn, offered when a stack is finished.
+  const otherOpenDecks = prioritizedDecks.filter((other) => other.id !== finished?.deckId && other.cards.some((item) => item.mastery < 3));
+  const isReviewingCompletedDeck =!!deck && dueCards.length === 0 && deck.cards.length > 0;
 
   // Home opens a specific deck via route params; apply each request once (adjust state during render).
   const requestKey = requestedDeckId ? `${requestedDeckId}:${requestToken ?? ''}` : undefined;
@@ -91,50 +91,21 @@ export default function StudyScreen() {
     Haptics.selectionAsync().catch(() => undefined);
   }
 
-  async function speak(text: string, label: string) {
-    const textToSpeak = text.trim();
-
-    if (!textToSpeak) {
-      return;
-    }
-
-    setTtsFeedback(`${label}: ${t('speechListening')}`);
-
-    try {
-      const result = await speakInLanguage(textToSpeak, languageCode, {
-        rate: 0.88,
-        onStart: () => setTtsFeedback(`${label}: ${t('listen')}`),
-        onDone: () => setTtsFeedback(''),
-        onStopped: () => setTtsFeedback(''),
-        onError: (error) => {
-          const message = error.message || t('speechUnavailable');
-          setTtsFeedback(message);
-          Alert.alert(t('listen'), message);
-        },
-      });
-
-      if (result === 'voice-missing') {
-        setTtsFeedback(t('voiceMissing'));
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : t('speechUnavailable');
-      setTtsFeedback(message);
-      Alert.alert(t('listen'), message);
-    }
-  }
-
   function review(grade: 'again' | 'good') {
     if (!deck || !card) {
       return;
     }
 
     reviewCard(deck.id, card.id, grade);
+    const finishesStack = grade === 'good' && !isReviewingCompletedDeck && deck.cards.every((item) => (item.id === card.id ? item.mastery + 1 >= 3 : item.mastery >= 3));
+    if (finishesStack) {
+      setFinished({ deckId: deck.id, title: deck.title });
+    }
+    if (grade === 'good') {
+      setConfettiBurst((current) => current + 1);
+    }
     setLastReviewed({ back: card.back });
     setIsFlipped(false);
-    setSpokenAnswer('');
-    setSpeechFeedback('');
-    setIsListening(false);
-    setTtsFeedback('');
 
     // A card that reaches full mastery leaves the queue, so the next card slides into the same index.
     const leavesQueue = grade === 'good' && card.mastery < 3 && card.mastery + 1 >= 3;
@@ -146,6 +117,23 @@ export default function StudyScreen() {
       setCardIndex((currentIndex) => (currentIndex + 1) % Math.max(1, cards.length));
     }
     Haptics.notificationAsync(grade === 'good' ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Warning).catch(() => undefined);
+  }
+
+  function repeatFinishedDeck() {
+    if (!finished) {
+      return;
+    }
+
+    resetDeckProgress(finished.deckId);
+    setSelectedDeckId(finished.deckId);
+    setCardIndex(0);
+    setLastReviewed(null);
+    setFinished(null);
+  }
+
+  function openOtherDeck(deckId: string) {
+    setFinished(null);
+    selectDeck(deckId);
   }
 
   function completeSwipe(grade: 'again' | 'good') {
@@ -167,132 +155,7 @@ export default function StudyScreen() {
     setSelectedDeckId(deckId);
     setCardIndex(0);
     setIsFlipped(false);
-    setIsSpeechMode(false);
-    setIsListening(false);
-    setSpokenAnswer('');
-    setSpeechFeedback('');
-    setTtsFeedback('');
     setLastReviewed(null);
-    stopSpeaking();
-  }
-
-  function enterSpeechMode() {
-    setIsSpeechMode(true);
-    setIsFlipped(false);
-    setSpokenAnswer('');
-    setSpeechFeedback('');
-  }
-
-  function leaveSpeechMode() {
-    import('expo-speech-recognition')
-      .then(({ ExpoSpeechRecognitionModule }) => ExpoSpeechRecognitionModule.abort())
-      .catch(() => undefined);
-    setIsSpeechMode(false);
-    setIsListening(false);
-    setSpokenAnswer('');
-    setSpeechFeedback('');
-  }
-
-  async function startAnswerSpeechCheck() {
-    if (!card || isListening) {
-      return;
-    }
-
-    setIsListening(true);
-    setSpokenAnswer('');
-    setSpeechFeedback(t('speechListening'));
-
-    try {
-      const { ExpoSpeechRecognitionModule } = await import('expo-speech-recognition');
-
-      if (!ExpoSpeechRecognitionModule) {
-        const message = t('speechUnavailable');
-        setIsListening(false);
-        setSpeechFeedback(message);
-        Alert.alert(t('speechMode'), message);
-        return;
-      }
-
-      const permissions = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-
-      if (!permissions.granted) {
-        const message = t('speechUnavailable');
-        setIsListening(false);
-        setSpeechFeedback(message);
-        Alert.alert(t('speechMode'), message);
-        return;
-      }
-
-      if (!ExpoSpeechRecognitionModule.isRecognitionAvailable()) {
-        const message = t('speechUnavailable');
-        setIsListening(false);
-        setSpeechFeedback(message);
-        Alert.alert(t('speechMode'), message);
-        return;
-      }
-
-      setSpeechFeedback(t('speechListening'));
-
-      let cleanup = () => undefined;
-      const resultListener = ExpoSpeechRecognitionModule.addListener('result', (event) => {
-        const transcript = event.results[0]?.transcript?.trim() ?? '';
-        if (!transcript) {
-          return;
-        }
-
-        setSpokenAnswer(transcript);
-
-        if (isAnswerMatch(transcript, card.back)) {
-          setSpeechFeedback(t('speechCorrect'));
-          cleanup();
-          ExpoSpeechRecognitionModule.abort();
-          review('good');
-          return;
-        }
-
-        setSpeechFeedback(t('speechTryAgain'));
-      });
-      const endListener = ExpoSpeechRecognitionModule.addListener('end', () => {
-        setIsListening(false);
-        cleanup();
-      });
-      const errorListener = ExpoSpeechRecognitionModule.addListener('error', (event) => {
-        setIsListening(false);
-        cleanup();
-        if (event.error !== 'aborted') {
-          setSpeechFeedback(event.message || t('speechTryAgain'));
-        }
-      });
-
-      cleanup = () => {
-        resultListener.remove();
-        endListener.remove();
-        errorListener.remove();
-      };
-
-      try {
-        ExpoSpeechRecognitionModule.start({
-          lang: languageCode,
-          interimResults: false,
-          continuous: false,
-          maxAlternatives: 1,
-          iosTaskHint: 'confirmation',
-          androidIntentOptions: {
-            EXTRA_LANGUAGE_MODEL: 'web_search',
-          },
-        });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : t('speechUnavailable');
-        setIsListening(false);
-        setSpeechFeedback(message);
-        Alert.alert(t('speechMode'), message);
-      }
-    } catch {
-      const message = t('speechUnavailable');
-      setIsListening(false);
-      setSpeechFeedback(message);
-      Alert.alert(t('speechMode'), message);
-    }
   }
 
   const frontRotateY = flipValue.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] });
@@ -336,7 +199,7 @@ export default function StudyScreen() {
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={[styles.safeArea, { backgroundColor: theme.background }]}> 
-      <View style={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <View>
             <Text style={[styles.title, { color: theme.text }]}>{t('study')}</Text>
@@ -350,6 +213,13 @@ export default function StudyScreen() {
           <ThemeToggle />
         </View>
 
+        {!!deck && (
+          <View accessibilityRole="header" style={[styles.learningBanner, { backgroundColor: deck.accent }]}>
+            <Ionicons name="school" size={20} color="#FFFFFF" />
+            <Text style={styles.learningBannerText} numberOfLines={2}>{t('learningNow').replace('{name}', deck.title)}</Text>
+          </View>
+        )}
+
         <DeckChips decks={prioritizedDecks} selectedId={deck?.id} theme={theme} onSelect={selectDeck} />
 
         {isComplete ? (
@@ -362,75 +232,40 @@ export default function StudyScreen() {
           </Animated.View>
         ) : (
           <>
-        <Animated.View {...(!isSpeechMode ? panResponder.panHandlers : {})} style={[styles.swipeFrame, { transform: [{ translateX: swipeX }, { rotateZ: swipeRotate }] }]}> 
+        <Animated.View {...panResponder.panHandlers} style={[styles.swipeFrame, { transform: [{ translateX: swipeX }, { rotateZ: swipeRotate }] }]}>
           <Animated.View pointerEvents="none" style={[styles.swipeBadge, styles.againBadge, { backgroundColor: theme.warning, opacity: againOpacity }]}> 
             <Text style={styles.swipeBadgeText}>{t('repeat')}</Text>
           </Animated.View>
           <Animated.View pointerEvents="none" style={[styles.swipeBadge, styles.goodBadge, { backgroundColor: theme.success, opacity: goodOpacity }]}> 
             <Text style={styles.swipeBadgeText}>{t('good')}</Text>
           </Animated.View>
-          <Pressable disabled={isSpeechMode} onPress={flipCard} accessibilityRole="button" accessibilityLabel={`${isFlipped ? t('answer') : t('question')}: ${isFlipped ? card.back : card.front}. ${t('tapToFlip')}`} style={styles.cardTouchable}>
-            <Animated.View style={[styles.studyCard, { backgroundColor: theme.surface, borderColor: theme.border, transform: [{ perspective: 1200 }, { rotateY: frontRotateY }] }]}> 
+          <Pressable onPress={flipCard} accessibilityRole={Platform.OS === 'web' ? undefined : 'button'} accessibilityLabel={`${isFlipped ? t('answer') : t('question')}: ${isFlipped ? card.back : card.front}. ${t('tapToFlip')}`} style={styles.cardTouchable}>
+            <Animated.View pointerEvents={isFlipped ? 'none' : 'auto'} style={[styles.studyCard, { backgroundColor: theme.surface, borderColor: theme.border, transform: [{ perspective: 1200 }, { rotateY: frontRotateY }] }]}> 
               <RuledPaper lineColor={theme.border} ruleColor={theme.primary} />
               <View style={styles.cardTopRow}>
                 <Text style={[styles.cardHint, { color: theme.muted }]}>{t('question')}</Text>
               </View>
-              <Text style={[styles.cardText, { color: theme.text }]}>{card.front}</Text>
+              <CardFace text={card.front} imageUri={card.frontImageUri} textStyle={[styles.cardText, { color: theme.text }]} />
               <Text style={[styles.tapHint, { color: theme.muted }]}>{t('tapToFlip')}</Text>
             </Animated.View>
-            <Animated.View style={[styles.studyCard, { backgroundColor: deck.accent, borderColor: deck.accent, transform: [{ perspective: 1200 }, { rotateY: backRotateY }] }]}> 
+            <Animated.View pointerEvents={isFlipped ? 'auto' : 'none'} style={[styles.studyCard, { backgroundColor: deck.accent, borderColor: deck.accent, transform: [{ perspective: 1200 }, { rotateY: backRotateY }] }]}> 
               <RuledPaper lineColor="rgba(255,255,255,0.22)" ruleColor="rgba(255,255,255,0.7)" />
               <View style={styles.cardTopRow}>
                 <Text style={[styles.cardHint, styles.lightText]}>{t('answer')}</Text>
               </View>
-              <Text style={[styles.cardText, styles.lightText]}>{card.back}</Text>
+              <CardFace text={card.back} imageUri={card.backImageUri} textStyle={[styles.cardText, styles.lightText]} />
               <Text style={[styles.tapHint, styles.lightText]}>{t('tapToFlip')}</Text>
             </Animated.View>
           </Pressable>
         </Animated.View>
 
-        <View style={styles.audioActions}>
-          <Pressable accessibilityRole="button" style={[styles.audioButton, { backgroundColor: theme.elevated }]} onPress={() => speak(card.front, t('front'))}>
-            <Text style={[styles.audioButtonText, { color: theme.text }]}>{t('speakFront')}</Text>
-          </Pressable>
-        </View>
-        {!!ttsFeedback && <Text style={[styles.ttsFeedback, { color: theme.muted }]}>{ttsFeedback}</Text>}
-        {!!lastReviewed && (
+        {!!lastReviewed?.back.trim() && (
           <View style={[styles.lastAnswer, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <View style={styles.lastAnswerText}>
               <Text style={[styles.lastAnswerLabel, { color: theme.muted }]}>{t('lastAnswer')}</Text>
               <Text style={[styles.lastAnswerValue, { color: theme.text }]} numberOfLines={2}>{lastReviewed.back}</Text>
             </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t('speakBack')}
-              onPress={() => speak(lastReviewed.back, t('answer'))}
-              style={({ pressed }) => [styles.lastAnswerButton, { backgroundColor: deck.accent }, pressed && styles.pressed]}
-            >
-              <Ionicons name="volume-high" size={20} color="#FFFFFF" />
-            </Pressable>
           </View>
-        )}
-
-        {isSpeechMode ? (
-          <View style={[styles.speechModePanel, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
-            <Text style={[styles.speechModeTitle, { color: theme.text }]}>{t('speechMode')}</Text>
-            <Text style={[styles.speechModeHint, { color: theme.muted }]}>{t('speechHint')}</Text>
-            {!!spokenAnswer && <Text style={[styles.spokenAnswer, { color: theme.text }]}>{spokenAnswer}</Text>}
-            {!!speechFeedback && <Text style={[styles.speechFeedback, { color: theme.muted }]}>{speechFeedback}</Text>}
-            <View style={styles.speechModeActions}>
-              <Pressable style={[styles.speechModeButton, { backgroundColor: theme.secondary }]} onPress={startAnswerSpeechCheck}>
-                <Text style={styles.speechModeButtonText}>{isListening ? t('speechListening') : t('speechStart')}</Text>
-              </Pressable>
-              <Pressable style={[styles.speechModeExitButton, { borderColor: theme.border }]} onPress={leaveSpeechMode}>
-                <Text style={[styles.speechModeExitText, { color: theme.text }]}>{t('speechExit')}</Text>
-              </Pressable>
-            </View>
-          </View>
-        ) : (
-          <Pressable style={[styles.speechModeButton, { backgroundColor: theme.secondary }]} onPress={enterSpeechMode}>
-            <Text style={styles.speechModeButtonText}>{t('speechMode')}</Text>
-          </Pressable>
         )}
 
         <View style={styles.actions}>
@@ -443,7 +278,43 @@ export default function StudyScreen() {
         </View>
           </>
         )}
-      </View>
+      </ScrollView>
+      <Confetti burst={confettiBurst} />
+      <Modal transparent statusBarTranslucent visible={!!finished} animationType="fade" onRequestClose={() => setFinished(null)}>
+        <View style={styles.finishBackdrop}>
+          <View style={[styles.finishCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <Text style={styles.finishEmoji}>🎉</Text>
+            <Text style={[styles.finishMessage, { color: theme.text }]}>{t('stackDone').replace('{name}', finished?.title ?? '')}</Text>
+            {otherOpenDecks.length > 0 && (
+              <View style={styles.finishList}>
+                <Text style={[styles.finishListTitle, { color: theme.muted }]}>{t('decks')}</Text>
+                <ScrollView style={styles.finishListScroll} contentContainerStyle={styles.finishListContent}>
+                  {otherOpenDecks.map((other) => (
+                    <Pressable
+                      key={other.id}
+                      accessibilityRole="button"
+                      onPress={() => openOtherDeck(other.id)}
+                      style={({ pressed }) => [styles.finishDeck, { backgroundColor: theme.elevated, borderColor: other.accent }, pressed && styles.pressed]}
+                    >
+                      <Text style={[styles.finishDeckTitle, { color: theme.text }]} numberOfLines={1}>{other.title}</Text>
+                      <Text style={[styles.finishDeckCount, { color: theme.muted }]}>{other.cards.filter((item) => item.mastery < 3).length}/{other.cards.length}</Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+            <View style={styles.finishActions}>
+              <Pressable accessibilityRole="button" style={[styles.finishButton, { backgroundColor: theme.primary }]} onPress={repeatFinishedDeck}>
+                <Text style={styles.finishButtonText}>{t('deckRepeat')}</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" style={[styles.finishButton, { backgroundColor: theme.elevated }]} onPress={() => setFinished(null)}>
+                <Text style={[styles.finishButtonText, { color: theme.text }]}>{t('done')}</Text>
+              </Pressable>
+            </View>
+          </View>
+          <Confetti burst={finished ? 1 : 0} />
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -453,9 +324,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    flex: 1,
+    flexGrow: 1,
     padding: 20,
-    paddingBottom: 20,
+    paddingBottom: 32,
     gap: 20,
   },
   header: {
@@ -499,13 +370,6 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     fontWeight: '600',
   },
-  lastAnswerButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   swipeFrame: {
     flex: 1,
     minHeight: 360,
@@ -528,6 +392,102 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '900',
+  },
+  learningBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 12,
+  },
+  learningBannerText: {
+    flex: 1,
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '900',
+  },
+  finishBackdrop: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  finishCard: {
+    width: '100%',
+    maxWidth: 420,
+    borderWidth: 1,
+    borderRadius: 26,
+    padding: 24,
+    gap: 14,
+    alignItems: 'center',
+  },
+  finishEmoji: {
+    fontSize: 48,
+  },
+  finishMessage: {
+    fontFamily: displayFont,
+    fontSize: 22,
+    lineHeight: 30,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  finishPrompt: {
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
+  },
+  finishList: {
+    alignSelf: 'stretch',
+    gap: 8,
+  },
+  finishListTitle: {
+    fontSize: 12,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  finishListScroll: {
+    maxHeight: 200,
+  },
+  finishListContent: {
+    gap: 8,
+  },
+  finishDeck: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    borderWidth: 2,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  finishDeckTitle: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  finishDeckCount: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  finishActions: {
+    flexDirection: 'row',
+    gap: 12,
+    alignSelf: 'stretch',
+  },
+  finishButton: {
+    flex: 1,
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  finishButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '900',
+    fontSize: 16,
   },
   cardTouchable: {
     flex: 1,
@@ -558,27 +518,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
   },
-  audioActions: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  audioButton: {
-    flex: 1,
-    borderRadius: 18,
-    paddingHorizontal: 12,
-    paddingVertical: 13,
-    alignItems: 'center',
-  },
-  audioButtonText: {
-    fontSize: 13,
-    fontWeight: '900',
-  },
-  ttsFeedback: {
-    marginTop: -14,
-    fontSize: 12,
-    fontWeight: '800',
-    textAlign: 'center',
-  },
   cardText: {
     fontFamily: displayFont,
     fontSize: 28,
@@ -591,56 +530,6 @@ const styles = StyleSheet.create({
   },
   lightText: {
     color: '#FFFFFF',
-  },
-  speechModePanel: {
-    borderWidth: 1,
-    borderRadius: 24,
-    padding: 16,
-    gap: 10,
-  },
-  speechModeTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-  },
-  speechModeHint: {
-    fontSize: 13,
-    lineHeight: 19,
-    fontWeight: '700',
-  },
-  spokenAnswer: {
-    fontSize: 16,
-    lineHeight: 22,
-    fontWeight: '900',
-  },
-  speechFeedback: {
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: '800',
-  },
-  speechModeActions: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  speechModeButton: {
-    borderRadius: 18,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  speechModeButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '900',
-  },
-  speechModeExitButton: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  speechModeExitText: {
-    fontWeight: '900',
   },
   actions: {
     flexDirection: 'row',

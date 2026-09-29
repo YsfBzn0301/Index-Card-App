@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BrandLogo } from '../../components/BrandLogo';
 import { DeckCard } from '../../components/DeckCard';
 import { ThemeToggle } from '../../components/ThemeToggle';
 import { useLanguage } from '../../state/LanguageContext';
@@ -24,11 +25,12 @@ export default function HomeScreen() {
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={[styles.safeArea, { backgroundColor: theme.background }]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.brandRow}>
+          <BrandLogo />
+          <ThemeToggle />
+        </View>
+
         <LinearGradient colors={[theme.gradientStart, theme.gradientEnd]} style={styles.hero}>
-          <View style={styles.heroTop}>
-            <Text style={styles.kicker}>Index Card</Text>
-            <ThemeToggle onColor />
-          </View>
           <Text style={styles.heroTitle}>{t('heroTitle')}</Text>
           <View style={styles.heroStats}>
             <View>
@@ -99,10 +101,11 @@ const styles = StyleSheet.create({
     gap: 18,
     justifyContent: 'space-between',
   },
-  heroTop: {
+  brandRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginBottom: -6,
   },
   kicker: {
     color: '#FFFFFF',

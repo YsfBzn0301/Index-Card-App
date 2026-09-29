@@ -4,6 +4,7 @@ import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useSt
 import { starterDecks } from '../data/starterDecks';
 import { deckAccents } from '../theme/palette';
 import { Deck, DeckPriority, Flashcard, ReminderSettings, ReviewGrade } from '../types/flashcards';
+import { deckImageUris, deleteCardImage } from '../utils/cardImages';
 import { sortByPriority } from '../utils/priority';
 
 const storageKey = 'index-card.library.v1';
@@ -17,7 +18,7 @@ type LibraryContextValue = {
   dueCards: Flashcard[];
   dueDecks: Deck[];
   createDeck: (title: string, category: string, folder: string, lesson: string) => void;
-  addCard: (deckId: string, front: string, back: string) => void;
+  addCard: (deckId: string, front: string, back: string, frontImageUri?: string, backImageUri?: string) => void;
   deleteCard: (deckId: string, cardId: string) => void;
   deleteCategory: (category: string) => void;
   deleteDeck: (deckId: string) => void;
@@ -26,6 +27,7 @@ type LibraryContextValue = {
   reviewCard: (deckId: string, cardId: string, grade: ReviewGrade) => void;
   resetDeckProgress: (deckId: string) => void;
   setDeckPriority: (deckId: string, priority: DeckPriority) => void;
+  renameDeck: (deckId: string, title: string) => void;
   resetLibrary: () => void;
   updateDeckReminder: (deckId: string, reminderSettings: ReminderSettings) => void;
 };
@@ -124,7 +126,7 @@ export function LibraryProvider({ children }: PropsWithChildren) {
           ...currentDecks,
         ]);
       },
-      addCard: (deckId, front, back) => {
+      addCard: (deckId, front, back, frontImageUri, backImageUri) => {
         const now = new Date().toISOString();
         setDecks((currentDecks) =>
           currentDecks.map((deck) =>
@@ -133,7 +135,7 @@ export function LibraryProvider({ children }: PropsWithChildren) {
                   ...deck,
                   updatedAt: now,
                   cards: [
-                    { id: createId('card'), front: front.trim(), back: back.trim(), mastery: 0 },
+                    { id: createId('card'), front: front.trim(), back: back.trim(), frontImageUri, backImageUri, mastery: 0 },
                     ...deck.cards,
                   ],
                 }
@@ -142,6 +144,9 @@ export function LibraryProvider({ children }: PropsWithChildren) {
         );
       },
       deleteCard: (deckId, cardId) => {
+        const removed = decks.find((deck) => deck.id === deckId)?.cards.find((card) => card.id === cardId);
+        deleteCardImage(removed?.frontImageUri);
+        deleteCardImage(removed?.backImageUri);
         const now = new Date().toISOString();
         setDecks((currentDecks) =>
           currentDecks.map((deck) =>
@@ -156,15 +161,19 @@ export function LibraryProvider({ children }: PropsWithChildren) {
         );
       },
       deleteCategory: (category) => {
+        deckImageUris(decks.filter((deck) => deck.category === category)).forEach(deleteCardImage);
         setDecks((currentDecks) => currentDecks.filter((deck) => deck.category !== category));
       },
       deleteDeck: (deckId) => {
+        deckImageUris(decks.filter((deck) => deck.id === deckId)).forEach(deleteCardImage);
         setDecks((currentDecks) => currentDecks.filter((deck) => deck.id !== deckId));
       },
       deleteFolder: (category, folder) => {
+        deckImageUris(decks.filter((deck) => deck.category === category && deck.folder === folder)).forEach(deleteCardImage);
         setDecks((currentDecks) => currentDecks.filter((deck) => deck.category !== category || deck.folder !== folder));
       },
       deleteLesson: (category, folder, lesson) => {
+        deckImageUris(decks.filter((deck) => deck.category === category && deck.folder === folder && deck.lesson === lesson)).forEach(deleteCardImage);
         setDecks((currentDecks) =>
           currentDecks.filter((deck) => deck.category !== category || deck.folder !== folder || deck.lesson !== lesson),
         );
@@ -174,7 +183,7 @@ export function LibraryProvider({ children }: PropsWithChildren) {
         setDecks((currentDecks) =>
           currentDecks.map((deck) =>
             deck.id === deckId
-              ? {
+              ? ({
                   ...deck,
                   updatedAt: now,
                   cards: deck.cards.map((card) =>
@@ -186,7 +195,7 @@ export function LibraryProvider({ children }: PropsWithChildren) {
                         }
                       : card,
                   ),
-                }
+                })
               : deck,
           ),
         );
@@ -210,7 +219,19 @@ export function LibraryProvider({ children }: PropsWithChildren) {
           currentDecks.map((deck) => (deck.id === deckId ? { ...deck, priority } : deck)),
         );
       },
-      resetLibrary: () => setDecks(starterDecks),
+      renameDeck: (deckId, title) => {
+        const trimmed = title.trim();
+        if (!trimmed) {
+          return;
+        }
+        setDecks((currentDecks) =>
+          currentDecks.map((deck) => (deck.id === deckId ? { ...deck, title: trimmed, updatedAt: new Date().toISOString() } : deck)),
+        );
+      },
+      resetLibrary: () => {
+        deckImageUris(decks).forEach(deleteCardImage);
+        setDecks(starterDecks);
+      },
       updateDeckReminder: (deckId, reminderSettings) => {
         const now = new Date().toISOString();
         setDecks((currentDecks) =>
