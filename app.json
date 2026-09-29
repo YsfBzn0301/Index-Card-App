@@ -9,11 +9,7 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "com.local.indexcard",
-      "supportsTablet": true,
-      "infoPlist": {
-        "NSMicrophoneUsageDescription": "Allow Index Card to use the microphone for dictation.",
-        "NSSpeechRecognitionUsageDescription": "Allow Index Card to recognize speech for flashcards."
-      }
+      "supportsTablet": true
     },
     "android": {
       "package": "com.local.indexcard",
@@ -24,10 +20,7 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false,
-      "permissions": [
-        "android.permission.RECORD_AUDIO"
-      ]
+      "predictiveBackGestureEnabled": false
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -41,20 +34,21 @@
           "defaultChannel": "study-reminders"
         }
       ],
-      [
-        "expo-speech-recognition",
-        {
-          "microphonePermission": "Allow Index Card to use the microphone for dictation.",
-          "speechRecognitionPermission": "Allow Index Card to recognize speech for flashcards.",
-          "androidSpeechServicePackages": [
-            "com.google.android.googlequicksearchbox",
-            "com.google.android.tts",
-            "com.google.android.as"
-          ]
-        }
-      ],
       "@react-native-community/datetimepicker",
-      "expo-font"
+      "expo-font",
+      "expo-image",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 120,
+          "backgroundColor": "#FFF8F1",
+          "dark": {
+            "image": "./assets/splash-icon.png",
+            "backgroundColor": "#14120F"
+          }
+        }
+      ]
     ],
     "extra": {
       "router": {},

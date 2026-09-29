@@ -7,6 +7,8 @@ export type Flashcard = {
   front: string;
   back: string;
   mastery: MasteryLevel;
+  frontImageUri?: string;
+  backImageUri?: string;
   lastReviewedAt?: string;
 };
 
@@ -23,7 +25,6 @@ export type Deck = {
   reminderAt?: string;
   reminderLeadMinutes?: number;
   reminderMessage?: string;
-  reminderSpeak?: boolean;
   cards: Flashcard[];
   createdAt: string;
   updatedAt: string;
@@ -33,7 +34,6 @@ export type ReminderSettings = {
   reminderAt?: string;
   reminderLeadMinutes?: number;
   reminderMessage?: string;
-  reminderSpeak?: boolean;
 };
 
 export type ReviewGrade = 'again' | 'good';

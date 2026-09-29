@@ -11,9 +11,11 @@ type DeckCardProps = {
   theme: AppTheme;
   // When given, the priority flag becomes a button so the level can be changed without opening the deck.
   onPriorityPress?: () => void;
+  // When given, a game button starts the matching game for this deck.
+  onGamePress?: () => void;
 };
 
-export function DeckCard({ deck, theme, onPriorityPress }: DeckCardProps) {
+export function DeckCard({ deck, theme, onPriorityPress, onGamePress }: DeckCardProps) {
   const { t } = useLanguage();
   const completedCards = deck.cards.filter((card) => card.mastery >= 3).length;
   const progress = deck.cards.length === 0 ? 0 : Math.round((completedCards / deck.cards.length) * 100);
@@ -24,7 +26,7 @@ export function DeckCard({ deck, theme, onPriorityPress }: DeckCardProps) {
 
   return (
     <View
-      accessible={!onPriorityPress}
+      accessible={!onPriorityPress && !onGamePress}
       accessibilityLabel={`${deck.title}, ${path}, ${completedCards}/${deck.cards.length}, ${priorityText}`}
       style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}
     >
@@ -58,6 +60,17 @@ export function DeckCard({ deck, theme, onPriorityPress }: DeckCardProps) {
         ) : (
           <View style={styles.flag}>{flag}</View>
         )}
+        {onGamePress ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('playGame')}
+            hitSlop={10}
+            onPress={onGamePress}
+            style={({ pressed }) => [styles.gameButton, { backgroundColor: theme.primary }, pressed && styles.flagPressed]}
+          >
+            <Ionicons name="game-controller" size={24} color="#FFFFFF" />
+          </Pressable>
+        ) : null}
         <Ionicons name="layers-outline" size={18} color={theme.muted} />
         <Text style={[styles.count, { color: theme.muted }]}>
           {completedCards}/{deck.cards.length}
@@ -123,6 +136,18 @@ const styles = StyleSheet.create({
     height: 36,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  gameButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+    shadowColor: '#000000',
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
   },
   flagPressed: {
     opacity: 0.6,
